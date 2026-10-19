@@ -1,0 +1,1322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Constellation Quest: walk a 3D night-sky world and open gates by naming, drawing, and sorting the 88 IAU constellations.">
+<meta name="theme-color" content="#070b1a">
+<title>Constellation Quest</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap">
+<style>
+:root{
+  --bg:#e8edf9; --panel:#ffffff; --panel2:#e1e8f8; --ink:#101839; --muted:#465180;
+  --gold:#7a4f00; --gold-fill:#f0c55a; --gold-ink:#1b1400;
+  --teal:#0b6f66; --rose:#a8305a; --line:#b4c0e6; --focus:#1f4fd8;
+  --ok:#0a7040; --bad:#a8231b; --shadow:0 18px 60px rgba(16,24,57,.22);
+  --display:'Fraunces',Georgia,'Times New Roman',serif;
+  --ui:'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#070b1a; --panel:#0f1733; --panel2:#17214b; --ink:#f1ead6; --muted:#a9b3da;
+    --gold:#f0c55a; --teal:#62d6c6; --rose:#f08aa8; --line:#2b3873; --focus:#9db8ff;
+    --ok:#6fe0a0; --bad:#ff8b80; --shadow:0 18px 60px rgba(0,0,0,.6); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#070b1a; --panel:#0f1733; --panel2:#17214b; --ink:#f1ead6; --muted:#a9b3da;
+  --gold:#f0c55a; --teal:#62d6c6; --rose:#f08aa8; --line:#2b3873; --focus:#9db8ff;
+  --ok:#6fe0a0; --bad:#ff8b80; --shadow:0 18px 60px rgba(0,0,0,.6); color-scheme:dark;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.5 var(--ui);overflow:hidden;-webkit-text-size-adjust:100%}
+[hidden]{display:none !important}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);font-weight:700;line-height:1.1;margin:0}
+a{color:var(--teal)}
+p{margin:0 0 .8em}
+
+/* ---------- 3D canvas + trail ---------- */
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;background:#070b1a;touch-action:none}
+#trail{position:fixed;inset:0;overflow:auto;padding:calc(84px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));background:radial-gradient(1200px 700px at 70% -10%,#1b2a6b 0,#0a1030 55%,#060914 100%);color:#f1ead6}
+#trail ol{list-style:none;margin:0 auto;padding:0;max-width:460px;display:flex;flex-direction:column;gap:6px}
+#trail li{display:flex}
+#trail li:nth-child(odd){justify-content:flex-start}
+#trail li:nth-child(even){justify-content:flex-end}
+.tgate{display:flex;gap:12px;align-items:center;min-width:240px;text-align:left;border:2px solid #2b3873;background:rgba(15,23,51,.85);color:#f1ead6;border-radius:999px;padding:10px 20px 10px 12px;cursor:pointer}
+.tgate:disabled{opacity:.45;cursor:not-allowed}
+.tgate .dot{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font:700 1.1rem var(--display);background:#17214b;border:2px solid var(--wc,#f0c55a);color:#f1ead6;flex:none}
+.tgate.solved .dot{background:var(--wc,#f0c55a);color:#1b1400}
+.tgate small{display:block;color:#b9c3ec}
+.tgate .st{color:#f0c55a;letter-spacing:.1em}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;gap:10px;align-items:center;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:linear-gradient(#050818e6,#05081800);color:#f4eed9;pointer-events:none}
+#hud>*{pointer-events:auto}
+.hbtn{border:1.5px solid #3a4890;background:rgba(10,16,48,.78);color:#f4eed9;border-radius:999px;padding:8px 14px;cursor:pointer;min-height:40px}
+.hbtn:hover{background:rgba(30,42,110,.9)}
+#hud .mid{flex:1;text-align:center;min-width:0}
+#hud .wn{font:700 1.15rem var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .gn{font-size:.9rem;color:#b9c3ec}
+#hud .sc{color:#f0c55a;font-weight:700;white-space:nowrap}
+#prompt{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;gap:10px;align-items:center;background:rgba(8,12,34,.86);border:1.5px solid #f0c55a;color:#f4eed9;padding:10px 16px;border-radius:999px;max-width:92vw;pointer-events:auto}
+#prompt kbd{font:700 .95rem var(--ui);background:#f0c55a;color:#1b1400;border-radius:6px;padding:1px 8px}
+#prompt button{border:0;background:#f0c55a;color:#1b1400;font-weight:700;border-radius:999px;padding:8px 16px;cursor:pointer;min-height:40px}
+#walkhint{position:fixed;left:50%;transform:translateX(-50%);top:calc(74px + env(safe-area-inset-top,0px));z-index:4;color:#cfd7f7;background:rgba(8,12,34,.6);padding:6px 14px;border-radius:999px;font-size:.95rem;pointer-events:none;text-align:center;max-width:92vw}
+#joy{position:fixed;left:calc(18px + env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));width:124px;height:124px;border-radius:50%;background:rgba(10,16,48,.55);border:2px solid #3a4890;z-index:5;touch-action:none}
+#knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:#f0c55a;opacity:.9}
+
+/* ---------- Menu ---------- */
+#menu{position:fixed;inset:0;overflow:auto;background:var(--bg);padding:calc(18px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
+#menu .wrap{max-width:940px;margin:0 auto}
+.topline{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.95rem;margin-bottom:6px}
+.hero{display:grid;grid-template-columns:1.15fr .85fr;gap:28px;align-items:center;padding:12px 0 22px}
+.hero h1{font-size:clamp(2.7rem,8vw,5.2rem);letter-spacing:-.025em;font-variation-settings:"opsz" 144}
+.hero .lede{font:italic 500 clamp(1.15rem,2.6vw,1.6rem)/1.3 var(--display);color:var(--muted);margin:14px 0 14px}
+.hero p.sub{max-width:52ch;color:var(--ink)}
+.heroart{background:radial-gradient(120% 100% at 30% 0,#1d2c76 0,#0a1030 62%);border:2px solid var(--line);border-radius:26px;aspect-ratio:1;display:grid;place-items:center;box-shadow:var(--shadow);position:relative}
+.heroart svg{width:90%;height:90%}
+.heroart .cap{position:absolute;left:16px;bottom:12px;font:italic 500 1rem var(--display);color:#cfd7f7}
+.hl{stroke:#f0c55a;stroke-width:.8;stroke-linecap:round;fill:none;stroke-dasharray:1;stroke-dashoffset:0}
+.hs{fill:#fff6d6}
+@media (prefers-reduced-motion:no-preference){
+  .hl{animation:draw 1.5s ease-out both}
+  .hs{animation:pop .5s ease-out both}
+  @keyframes draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+  @keyframes pop{from{opacity:0;transform:scale(.2)}to{opacity:1;transform:scale(1)}}
+}
+.hs{transform-box:fill-box;transform-origin:center}
+section.blk{margin:26px 0}
+section.blk>h2{font-size:1.7rem;margin-bottom:12px}
+ol.worlds{list-style:none;margin:0;padding:0}
+ol.worlds>li{display:grid;grid-template-columns:52px 1fr auto;gap:14px;align-items:center;padding:16px 0;border-top:1.5px solid var(--line);position:relative}
+ol.worlds>li:last-child{border-bottom:1.5px solid var(--line)}
+.node{width:48px;height:48px;border-radius:50%;border:3px solid var(--wc);display:grid;place-items:center;font:700 1.3rem var(--display);background:var(--panel)}
+.world-t{font:700 1.4rem var(--display)}
+.world-s{color:var(--muted);margin:2px 0 0;max-width:56ch}
+.world-m{font-size:.95rem;margin-top:4px}
+.stars{color:var(--gold);font-weight:700;letter-spacing:.05em}
+.locked .node{border-style:dashed;opacity:.7}
+.btn{border:2px solid var(--line);background:var(--panel2);border-radius:12px;padding:10px 18px;min-height:46px;cursor:pointer;font-weight:700}
+.btn:hover{border-color:var(--gold)}
+.btn.primary{background:var(--gold-fill);border-color:var(--gold-fill);color:var(--gold-ink)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.small{min-height:38px;padding:6px 12px;font-weight:400}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+details.box{border:1.5px solid var(--line);border-radius:14px;background:var(--panel);padding:0 16px}
+details.box>summary{cursor:pointer;padding:14px 0;font:700 1.25rem var(--display);list-style:none}
+details.box>summary::-webkit-details-marker{display:none}
+details.box>summary::after{content:"+";float:right;color:var(--gold)}
+details.box[open]>summary::after{content:"\2013"}
+details.box .in{padding:0 0 16px}
+textarea#plist{width:100%;min-height:130px;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:10px 12px;resize:vertical}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.checks label,.setting{display:flex;gap:10px;align-items:flex-start;padding:5px 0;cursor:pointer}
+.checks input,.setting input{width:20px;height:20px;margin-top:2px;accent-color:#c89212;flex:none}
+.err{color:var(--bad);font-weight:700;min-height:1.4em}
+.howto li{margin:6px 0}
+kbd{font:700 .85em var(--ui);border:1.5px solid var(--line);border-bottom-width:3px;border-radius:6px;padding:0 6px;background:var(--panel2)}
+footer.fine{color:var(--muted);font-size:.92rem;margin-top:30px;border-top:1.5px solid var(--line);padding-top:14px}
+
+/* ---------- Modal + challenges ---------- */
+#modal{position:fixed;inset:0;z-index:20;background:rgba(3,5,16,.74);display:flex;align-items:center;justify-content:center;padding:calc(12px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))}
+#sheet{background:var(--panel);color:var(--ink);border:2px solid var(--line);border-radius:20px;max-width:700px;width:100%;max-height:100%;overflow:auto;padding:20px 22px 22px;box-shadow:var(--shadow)}
+#sheet:focus{outline:none}
+.mh{display:flex;gap:12px;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+.mh .where{color:var(--muted);font-size:.95rem}
+.mh .x{border:0;background:transparent;font-size:1.6rem;line-height:1;cursor:pointer;color:var(--muted);padding:4px 10px;border-radius:8px}
+.q{font:700 1.45rem/1.2 var(--display);margin:4px 0 14px}
+.note{color:var(--muted);font-size:.98rem;margin:-6px 0 12px}
+.sky{background:radial-gradient(120% 100% at 30% 0,#1d2c76 0,#0a1030 65%);border:2px solid #2b3873;border-radius:16px;position:relative;color:#f1ead6}
+.sky svg{display:block;width:100%;height:100%}
+.sky.fig{width:min(100%,300px);aspect-ratio:1;margin:0 auto 14px}
+.sky .tag{position:absolute;left:10px;top:8px;font:700 1rem var(--display)}
+.opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.opts.c1{grid-template-columns:1fr}
+.opts.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:520px){.opts.c3{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{grid-template-columns:1fr}ol.worlds>li{grid-template-columns:44px 1fr}ol.worlds>li .act{grid-column:1/-1}}
+.opt{position:relative;text-align:left;min-height:54px;border:2px solid var(--line);background:var(--panel2);border-radius:12px;padding:10px 14px 10px 40px;cursor:pointer;font-size:1.05rem}
+.opt .k{position:absolute;left:12px;top:50%;transform:translateY(-50%);font:700 .85rem var(--ui);color:var(--muted);border:1.5px solid var(--line);border-radius:6px;width:22px;height:22px;display:grid;place-items:center}
+.opt:hover:not(:disabled){border-color:var(--gold)}
+.opt[aria-pressed="true"]{border-color:var(--gold);background:var(--panel);box-shadow:inset 0 0 0 2px var(--gold)}
+.opt.bad{opacity:.5;text-decoration:line-through}
+.opt.good{border-color:var(--ok);box-shadow:inset 0 0 0 2px var(--ok)}
+.opt:disabled{cursor:not-allowed}
+.opt.shape{padding:6px;min-height:0}
+.opt.shape .k{top:12px;transform:none;background:#0a1030;color:#f1ead6;border-color:#3a4890;z-index:1}
+.opt.shape .sky{border-radius:10px;aspect-ratio:1;border-width:1px}
+.opt small{display:block;color:var(--muted)}
+.fb{min-height:1.6em;margin:14px 0 4px;font-weight:700}
+.fb.bad{color:var(--bad)}.fb.ok{color:var(--ok)}.fb.hint{color:var(--teal);font-weight:400}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;align-items:center}
+.actions .sp{flex:1}
+.counter{font-weight:700;color:var(--gold);margin:6px 0}
+.board{position:relative;width:min(100%,460px);aspect-ratio:1;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none}
+.board svg{touch-action:none}
+.board .ln{stroke:#f0c55a;stroke-width:1.4;stroke-linecap:round}
+.board .ln.bad{stroke:#ff7a6e;stroke-dasharray:3 2}
+.board .ln.guide{stroke:#6f7fd0;stroke-width:1;stroke-dasharray:2 2;opacity:.9}
+.board .ln.rub{stroke:#9fb0ff;stroke-width:1;stroke-dasharray:1 2}
+.board .star{cursor:pointer}
+.board .star .halo{fill:rgba(255,246,214,.18)}
+.board .star .core{fill:#fff6d6}
+.board .star.sel .halo{fill:rgba(240,197,90,.55)}
+.board .star:focus{outline:none}
+.board .star:focus-visible .halo{fill:rgba(157,184,255,.75)}
+.board .mem{position:absolute;left:0;right:0;top:8px;text-align:center;font:700 1.1rem var(--display);color:#f0c55a;pointer-events:none}
+.sortrow{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;padding:8px 0;border-top:1.5px solid var(--line)}
+.sortrow .sky{aspect-ratio:1;border-radius:10px}
+.sortrow .nm{font-weight:700}
+.sortrow .sg{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.sortrow button{border:2px solid var(--line);background:var(--panel2);border-radius:999px;padding:4px 12px;min-height:36px;cursor:pointer}
+.sortrow button[aria-pressed="true"]{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);background:var(--panel)}
+.sortrow.good{background:color-mix(in srgb,var(--ok) 10%,transparent)}
+.sortrow.bad{background:color-mix(in srgb,var(--bad) 10%,transparent)}
+.hop .path{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px}
+.hop .pill{background:var(--panel2);border:2px solid var(--line);border-radius:999px;padding:4px 12px;font-weight:700}
+.hop .pill.goal{border-color:var(--gold)}
+.hop .pill.here{background:var(--gold-fill);color:var(--gold-ink);border-color:var(--gold-fill)}
+.hop .arrow{color:var(--muted)}
+.typed{display:grid;gap:8px}
+.typed input{width:100%;min-height:46px;border:2px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 12px}
+.typed input.bad{border-color:var(--bad)}.typed input.good{border-color:var(--ok)}
+.win{text-align:center;padding:6px 0}
+.win .big{font:700 2.6rem var(--display);color:var(--gold);letter-spacing:.12em}
+.win p{max-width:50ch;margin-left:auto;margin-right:auto}
+.story{display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:start}
+.story svg{width:96px;height:96px}
+@media (max-width:520px){.story{grid-template-columns:1fr}.story svg{width:72px;height:72px}}
+
+/* ---------- Atlas ---------- */
+#atlas{position:fixed;inset:0;z-index:15;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px))}
+#atlas .wrap{max-width:1100px;margin:0 auto}
+.ahead{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 16px}
+.ahead h2{font-size:1.9rem;margin-right:auto}
+.ahead input,.ahead select{min-height:44px;border:2px solid var(--line);background:var(--panel);border-radius:10px;padding:6px 12px}
+.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.acard{border:1.5px solid var(--line);background:var(--panel);border-radius:14px;padding:10px}
+.acard .sky{aspect-ratio:1;border-radius:10px;margin-bottom:8px}
+.acard h3{font-size:1.15rem}
+.acard .ab{color:var(--muted);font-weight:400;font-family:var(--ui);font-size:.9rem}
+.acard p{margin:2px 0;font-size:.95rem}
+.acard details{font-size:.92rem;margin-top:4px}
+.acard summary{cursor:pointer;color:var(--teal);font-weight:700}
+.pill-se{display:inline-block;border-radius:999px;padding:0 10px;font-size:.85rem;font-weight:700;border:1.5px solid var(--line)}
+.se-winter{border-color:#6f9bff}.se-spring{border-color:#6bc86b}.se-summer{border-color:#e0b020}.se-autumn{border-color:#e07a3a}.se-circumpolar{border-color:#b58cff}.se-southern{border-color:#8a94b8}
+
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto !important}}
+
+</style>
+</head>
+<body>
+<canvas id="scene" hidden aria-label="3D night-sky world"></canvas>
+<div id="trail" hidden></div>
+
+<div id="hud" hidden>
+  <button class="hbtn" id="h-menu" type="button">Menu</button>
+  <div class="mid"><div class="wn" id="h-world"></div><div class="gn" id="h-gate"></div></div>
+  <span class="sc" id="h-stars" aria-label="Stars earned"></span>
+  <button class="hbtn" id="h-atlas" type="button">Atlas</button>
+</div>
+<div id="walkhint" hidden>Walk with W A S D or the arrow keys. Walk up to a glowing gate.</div>
+<div id="prompt" hidden><span id="prompt-t"></span><button type="button" id="prompt-b">Solve</button></div>
+<div id="joy" hidden aria-hidden="true"><div id="knob"></div></div>
+
+<main id="menu">
+  <div class="wrap">
+    <div class="topline"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.6 6.4L21 9.3l-5 4.4 1.6 6.6L12 16.8 6.4 20.3 8 13.7 3 9.3l6.4-.9z" fill="#f0c55a"/></svg><span>Astronomy games</span></div>
+    <div class="hero">
+      <div>
+        <h1>Constellation Quest</h1>
+        <p class="lede">Walk the sky. Name the stars. Open the gates.</p>
+        <p class="sub">Every gate is a puzzle about the 88 constellations the IAU recognizes. Name them from their shapes, draw them star by star, place them in the right season, and learn who shares a border with whom. Questions are drawn fresh every time you enter a world or replay a gate, so each run is different. Solve a gate and its constellation lights up above you.</p>
+        <div class="row"><button class="btn primary" id="m-start" type="button">Start with World 1</button><button class="btn" id="m-atlas" type="button">Open the Star Atlas</button></div>
+      </div>
+      <div class="heroart" id="heroart" aria-hidden="true"></div>
+    </div>
+
+    <section class="blk" aria-labelledby="wh">
+      <h2 id="wh">Choose a world</h2>
+      <ol class="worlds" id="worldlist"></ol>
+    </section>
+
+    <section class="blk">
+      <details class="box" id="pract">
+        <summary>Practice your own constellations</summary>
+        <div class="in">
+          <p>Type one constellation per line. Use a name like <code>Orion</code> or the IAU abbreviation like <code>UMa</code>. Pick the kinds of gates you want, and the game builds a path from your list (up to 18 gates).</p>
+          <label for="plist" class="note" style="display:block;margin:0 0 4px">Your constellations</label>
+          <textarea id="plist" spellcheck="false" placeholder="Orion&#10;Cassiopeia&#10;Leo"></textarea>
+          <div class="row" id="presets"></div>
+          <div class="checks" id="pkinds">
+            <label><input type="checkbox" value="shape" checked> Name it from its shape</label>
+            <label><input type="checkbox" value="pick"> Pick its shape from four</label>
+            <label><input type="checkbox" value="draw" checked> Draw it by connecting stars</label>
+            <label><input type="checkbox" value="season" checked> Which season?</label>
+            <label><input type="checkbox" value="nb"> Which constellation is next to it?</label>
+          </div>
+          <div class="err" id="perr" role="alert"></div>
+          <div class="row"><button class="btn primary" id="pplay" type="button">Play these</button><button class="btn" id="pfill" type="button">Fill in examples</button></div>
+        </div>
+      </details>
+    </section>
+
+    <section class="blk">
+      <details class="box">
+        <summary>How to play</summary>
+        <div class="in">
+          <ul class="howto">
+            <li><b>Walk:</b> <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or the arrow keys. On a tablet or phone, use the joystick.</li>
+            <li><b>Solve a gate:</b> walk up to it and press <kbd>E</kbd> (or tap <b>Solve</b>). A gate stays shut until you solve the one before it.</li>
+            <li><b>Answer buttons:</b> press <kbd>1</kbd> to <kbd>9</kbd> to pick, <kbd>Enter</kbd> to check, <kbd>Esc</kbd> to close.</li>
+            <li><b>Draw gates:</b> tap or click one star, then another, to draw a line between them. Drag from star to star works too. Tap the same two stars again to erase a line. Keyboard: <kbd>Tab</kbd> to a star, <kbd>Enter</kbd> to pick it.</li>
+            <li><b>Memory gates:</b> the figure flashes for a few seconds, then disappears. Draw it from memory.</li>
+            <li><b>Seasons</b> mean the evening sky (about 9 pm) as seen from the mid-northern United States.</li>
+            <li><b>Neighbors</b> are constellations that share a border line on the official IAU map. Touching at a single corner does not count.</li>
+            <li><b>Fresh questions:</b> every time you enter a world, its six gates get new constellations and new wrong answers. Replaying a gate you already opened also gives a new question. Stars are the best you have earned at each gate position.</li>
+            <li><b>New questions every run:</b> each world draws a fresh set of six gates from all 88 constellations when you start it. Leave and come back and you resume the same run. Finish a world and replay it for a new set. Your best run is kept.</li>
+            <li><b>Stars:</b> 3 stars if you get it right with no hints and no misses. 2 stars for one or two hints or misses. 1 star for more than that, or if a hint reveals the answer.</li>
+          </ul>
+        </div>
+      </details>
+    </section>
+
+    <section class="blk">
+      <details class="box">
+        <summary>Settings</summary>
+        <div class="in">
+          <label class="setting"><input type="checkbox" id="s-simple"> <span>Simple mode (no 3D), for slow computers</span></label>
+          <label class="setting"><input type="checkbox" id="s-counter" checked> <span>Show the line counter on draw gates while I work</span></label>
+          <label class="setting"><input type="checkbox" id="s-teacher"> <span>Teacher: unlock all worlds</span></label>
+          <div class="row"><button class="btn small" id="s-reset" type="button">Erase my saved progress</button></div>
+        </div>
+      </details>
+    </section>
+
+    <footer class="fine">No accounts, no tracking. Progress is saved only on this device. Star positions and constellation borders come from the open d3-celestial data set (IAU boundaries). 3D graphics by <a href="https://threejs.org" rel="noopener">Three.js</a> (MIT license).</footer>
+  </div>
+</main>
+
+<div id="atlas" hidden role="dialog" aria-modal="true" aria-label="Star Atlas">
+  <div class="wrap">
+    <div class="ahead">
+      <h2>Star Atlas</h2>
+      <input id="a-q" type="search" placeholder="Search by name or meaning" aria-label="Search the atlas">
+      <select id="a-s" aria-label="Filter by season">
+        <option value="">All 88</option><option value="winter">Winter</option><option value="spring">Spring</option><option value="summer">Summer</option><option value="autumn">Autumn</option><option value="circumpolar">All year (circumpolar)</option><option value="southern">Far south</option>
+      </select>
+      <button class="btn" id="a-close" type="button">Close</button>
+    </div>
+    <p class="note" id="a-count"></p>
+    <div class="agrid" id="a-grid"></div>
+  </div>
+</div>
+
+<div id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="m-title"><div id="sheet" tabindex="-1"></div></div>
+<noscript><p style="position:fixed;inset:0;background:#070b1a;color:#f1ead6;padding:40px;z-index:99">Constellation Quest needs JavaScript turned on to play.</p></noscript>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ============ data ============ */
+const DATA = [{"i":"And","n":"Andromeda","m":"The Chained Princess","s":[[0.0,26.2],[27.6,51.9],[45.7,67.2],[65.9,72.2],[32.8,89.2],[39.7,86.9],[46.1,71.9],[47.4,58.7],[79.7,28.1],[100.0,26.8],[78.0,25.1],[78.6,18.5],[36.0,44.0],[40.5,36.5],[31.5,17.2],[17.9,10.8],[74.2,19.3]],"e":[[0,1],[1,2],[1,12],[2,3],[2,6],[2,7],[4,5],[5,6],[7,8],[8,9],[8,10],[10,11],[10,16],[12,13],[13,14],[14,15]],"ra":0.52,"dec":38.7,"nb":["Cas","Lac","Peg","Per","Psc","Tri"],"se":"autumn","cl":1,"t":2,"bm":"November","dm":48.6,"sa":null},{"i":"Ant","n":"Antlia","m":"The Air Pump","s":[[100.0,62.8],[32.7,31.7],[0.0,68.3]],"e":[[0,1],[1,2]],"ra":10.3,"dec":-35.1,"nb":["Cen","Hya","Pyx","Vel"],"se":"spring","cl":1,"t":0,"bm":"April","dm":-31.1,"sa":null},{"i":"Aps","n":"Apus","m":"The Bird of Paradise","s":[[100.0,68.1],[22.8,50.7],[0.0,31.9],[11.8,55.1]],"e":[[0,1],[1,2],[2,3]],"ra":16.13,"dec":-78.8,"nb":["Ara","Cha","Cir","Mus","Oct","Pav","TrA"],"se":"southern","cl":1,"t":3,"bm":"July","dm":-77.5,"sa":null},{"i":"Aqr","n":"Aquarius","m":"The Water Bearer","s":[[100.0,50.4],[97.1,49.0],[74.4,39.9],[54.5,27.3],[45.2,29.8],[41.0,26.6],[37.2,26.8],[27.3,44.4],[12.7,48.5],[18.8,76.7],[53.8,59.0],[48.0,44.7],[43.1,23.3],[11.1,74.6],[0.0,69.8]],"e":[[0,1],[1,2],[2,3],[2,10],[3,4],[3,11],[4,5],[5,6],[5,12],[6,7],[7,8],[8,9],[8,13],[8,14]],"ra":22.38,"dec":-7.4,"nb":["Aql","Cap","Cet","Del","Equ","Peg","PsA","Psc","Scl"],"se":"autumn","cl":1,"t":2,"bm":"October","dm":1.4,"sa":null},{"i":"Aql","n":"Aquila","m":"The Eagle","s":[[40.2,17.8],[34.2,27.0],[28.2,40.0],[6.7,78.3],[31.8,68.7],[67.5,57.5],[93.2,0.0],[93.3,100.0]],"e":[[0,1],[1,2],[1,5],[1,6],[2,3],[3,4],[4,5],[5,6],[5,7]],"ra":19.65,"dec":5.0,"nb":["Aqr","Cap","Del","Her","Oph","Sct","Ser","Sge","Sgr"],"se":"summer","cl":1,"t":1,"bm":"September","dm":13.9,"sa":null},{"i":"Ara","n":"Ara","m":"The Altar","s":[[34.3,59.8],[29.4,100.0],[77.7,85.6],[68.8,56.5],[69.0,30.3],[22.3,-0.0],[34.1,51.9]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]],"ra":17.25,"dec":-55.9,"nb":["Aps","CrA","Nor","Pav","Sco","Tel","TrA"],"se":"southern","cl":1,"t":3,"bm":"July","dm":-49.9,"sa":null},{"i":"Ari","n":"Aries","m":"The Ram","s":[[0.0,17.9],[74.6,50.0],[97.6,70.3],[100.0,82.1]],"e":[[0,1],[1,2],[2,3]],"ra":2.18,"dec":22.8,"nb":["Cet","Per","Psc","Tau","Tri"],"se":"autumn","cl":1,"t":2,"bm":"December","dm":27.3,"sa":null},{"i":"Aur","n":"Auriga","m":"The Charioteer","s":[[28.3,35.9],[57.3,32.9],[65.2,50.8],[74.6,81.4],[51.0,100.0],[25.4,65.6],[32.0,0.0],[67.7,40.7],[68.1,51.3]],"e":[[0,1],[0,5],[0,6],[1,2],[1,6],[1,7],[2,3],[3,4],[4,5],[7,8]],"ra":5.45,"dec":42.1,"nb":["Cam","Gem","Lyn","Per","Tau"],"se":"winter","cl":1,"t":1,"bm":"January","dm":54.3,"sa":null},{"i":"Boo","n":"Bo\u00f6tes","m":"The Herdsman","s":[[75.7,89.3],[70.9,87.1],[57.7,85.6],[47.9,56.3],[48.1,35.7],[33.3,29.4],[24.3,47.1],[40.2,64.7],[41.4,100.0],[55.5,15.2],[56.3,0.1],[51.4,0.0]],"e":[[0,1],[1,2],[2,3],[2,7],[2,8],[3,4],[4,5],[4,9],[5,6],[6,7],[9,10],[9,11],[10,11]],"ra":14.44,"dec":32.9,"nb":["CVn","Com","CrB","Dra","Her","Ser","UMa","Vir"],"se":"spring","cl":0,"t":2,"bm":"June","dm":51.9,"sa":"summer"},{"i":"Cae","n":"Caelum","m":"The Chisel","s":[[84.3,100.0],[66.4,66.7],[63.9,16.6],[15.7,0.0]],"e":[[0,1],[1,2],[2,3]],"ra":4.75,"dec":-39.9,"nb":["Col","Dor","Eri","Hor","Lep","Pic"],"se":"winter","cl":0,"t":3,"bm":"January","dm":-35.5,"sa":"autumn"},{"i":"Cam","n":"Camelopardalis","m":"The Giraffe","s":[[40.5,100.0],[38.6,73.3],[43.8,50.2],[64.4,28.4],[69.9,50.8],[84.7,69.7],[15.3,32.5],[18.2,0.0]],"e":[[0,1],[1,2],[2,3],[2,6],[3,4],[4,5],[6,7]],"ra":4.78,"dec":66.2,"nb":["Aur","Cas","Cep","Dra","Lyn","Per","UMa","UMi"],"se":"circumpolar","cl":1,"t":2,"bm":"January","dm":77.0,"sa":null},{"i":"Cnc","n":"Cancer","m":"The Crab","s":[[23.5,86.5],[40.9,54.5],[42.6,37.5],[38.8,0.0],[76.5,100.0]],"e":[[0,1],[1,2],[1,4],[2,3]],"ra":8.7,"dec":18.0,"nb":["CMi","Gem","Hya","Leo","Lyn"],"se":"winter","cl":0,"t":2,"bm":"March","dm":28.8,"sa":"spring"},{"i":"CVn","n":"Canes Venatici","m":"The Hunting Dogs","s":[[0.0,85.6],[100.0,14.4]],"e":[[0,1]],"ra":12.75,"dec":39.9,"nb":["Boo","Com","UMa"],"se":"spring","cl":1,"t":0,"bm":"May","dm":41.4,"sa":null},{"i":"CMa","n":"Canis Major","m":"The Greater Dog","s":[[88.4,33.4],[59.3,25.7],[36.4,64.6],[30.0,78.7],[38.3,87.0],[42.0,92.7],[87.6,100.0],[11.6,95.5],[44.9,27.5],[34.8,19.8],[47.4,0.0]],"e":[[0,1],[1,2],[1,8],[2,3],[3,4],[3,7],[4,5],[5,6],[8,9],[8,10],[9,10]],"ra":6.91,"dec":-21.9,"nb":["Col","Lep","Mon","Pup"],"se":"winter","cl":1,"t":1,"bm":"February","dm":-12.0,"sa":null},{"i":"CMi","n":"Canis Minor","m":"The Lesser Dog","s":[[0.8,100.0],[99.2,0.0]],"e":[[0,1]],"ra":7.55,"dec":6.8,"nb":["Cnc","Gem","Hya","Mon"],"se":"winter","cl":1,"t":0,"bm":"February","dm":8.3,"sa":null},{"i":"Cap","n":"Capricornus","m":"The Sea-Goat","s":[[100.0,17.2],[95.7,27.6],[86.4,41.3],[67.0,75.2],[60.9,82.8],[23.9,62.6],[0.0,34.8],[7.9,36.8],[27.7,36.7],[45.7,38.1]],"e":[[0,1],[0,9],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9]],"ra":20.94,"dec":-18.3,"nb":["Aql","Aqr","Mic","PsA","Sgr"],"se":"summer","cl":1,"t":2,"bm":"September","dm":-12.5,"sa":null},{"i":"Car","n":"Carina","m":"The Keel (of a ship)","s":[[100.0,33.2],[90.4,55.4],[32.4,73.1],[20.4,74.6],[10.9,63.4],[12.0,56.5],[15.9,54.8],[32.7,48.9],[48.6,51.8],[61.0,39.6],[60.5,25.4],[44.0,39.4],[3.5,61.1],[2.6,60.2],[0.1,57.1],[0.0,53.8],[4.2,51.9]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[4,12],[5,6],[5,16],[6,7],[7,8],[7,11],[8,9],[9,10],[10,11],[12,13],[13,14],[14,15],[15,16]],"ra":9.47,"dec":-61.3,"nb":["Cen","Cha","Mus","Pic","Pup","Vel","Vol"],"se":"southern","cl":1,"t":3,"bm":"March","dm":-43.2,"sa":null},{"i":"Cas","n":"Cassiopeia","m":"The Seated Queen","s":[[0.0,19.2],[22.4,50.6],[51.3,48.0],[69.5,80.8],[100.0,55.7]],"e":[[0,1],[1,2],[2,3],[3,4]],"ra":0.99,"dec":60.4,"nb":["And","Cam","Cep","Lac","Per"],"se":"circumpolar","cl":1,"t":1,"bm":"November","dm":63.7,"sa":null},{"i":"Cen","n":"Centaurus","m":"The Centaur","s":[[100.0,75.0],[84.0,57.8],[75.5,54.5],[69.9,49.9],[43.4,61.5],[34.9,44.6],[36.6,30.6],[36.4,28.3],[25.3,14.1],[12.3,33.4],[0.0,36.6],[52.0,13.5],[24.0,86.1],[36.1,82.1],[81.4,62.0],[90.3,86.5]],"e":[[0,1],[1,2],[2,3],[2,14],[3,4],[4,5],[4,12],[4,13],[5,6],[6,7],[7,8],[7,11],[8,9],[9,10],[14,15]],"ra":13.39,"dec":-49.7,"nb":["Ant","Car","Cir","Cru","Hya","Lup","Mus","Vel"],"se":"spring","cl":1,"t":2,"bm":"May","dm":-36.4,"sa":null},{"i":"Cep","n":"Cepheus","m":"The King","s":[[84.3,66.7],[77.8,74.2],[59.6,74.2],[47.0,92.7],[27.5,100.0],[30.5,94.9],[19.6,92.7],[15.7,55.5],[16.6,0.0],[51.2,38.3]],"e":[[0,1],[1,2],[2,3],[2,9],[3,4],[4,5],[5,6],[6,7],[7,8],[7,9],[8,9]],"ra":21.84,"dec":64.6,"nb":["Cam","Cas","Cyg","Dra","Lac","UMi"],"se":"circumpolar","cl":1,"t":2,"bm":"October","dm":77.6,"sa":null},{"i":"Cet","n":"Cetus","m":"The Sea Monster (Whale)","s":[[11.7,31.7],[16.3,25.9],[21.0,18.9],[10.8,14.7],[1.7,17.6],[0.0,29.6],[14.0,38.9],[26.4,46.9],[43.3,64.9],[47.5,78.7],[83.6,85.3],[100.0,62.7],[69.3,65.0],[59.9,59.8]],"e":[[0,1],[0,5],[0,6],[1,2],[2,3],[3,4],[4,5],[6,7],[7,8],[8,9],[8,13],[9,10],[10,11],[11,12],[12,13]],"ra":2.09,"dec":-2.6,"nb":["Aqr","Ari","Eri","For","Psc","Scl","Tau"],"se":"autumn","cl":1,"t":2,"bm":"December","dm":10.1,"sa":null},{"i":"Cha","n":"Chamaeleon","m":"The Chameleon","s":[[100.0,48.4],[39.0,42.2],[35.1,57.8],[0.0,55.6],[3.8,44.4]],"e":[[0,1],[1,2],[1,4],[2,3],[3,4]],"ra":10.71,"dec":-79.4,"nb":["Aps","Car","Men","Mus","Oct","Vol"],"se":"southern","cl":1,"t":3,"bm":"April","dm":-76.9,"sa":null},{"i":"Cir","n":"Circinus","m":"The Drawing Compass","s":[[24.9,0.0],[86.7,100.0],[13.3,8.7]],"e":[[0,1],[1,2]],"ra":15.16,"dec":-61.1,"nb":["Aps","Cen","Lup","Mus","Nor","TrA"],"se":"southern","cl":1,"t":0,"bm":"June","dm":-58.8,"sa":null},{"i":"Col","n":"Columba","m":"The Dove","s":[[0.0,6.4],[61.8,26.4],[84.1,10.7],[100.0,24.7],[47.2,93.6]],"e":[[0,1],[1,2],[1,4],[2,3]],"ra":5.87,"dec":-36.3,"nb":["CMa","Cae","Lep","Pic","Pup"],"se":"winter","cl":1,"t":3,"bm":"February","dm":-33.4,"sa":null},{"i":"Com","n":"Coma Berenices","m":"Berenice's Hair","s":[[6.1,100.0],[4.5,4.9],[95.5,0.0]],"e":[[0,1],[1,2]],"ra":12.94,"dec":24.7,"nb":["Boo","CVn","Leo","UMa","Vir"],"se":"spring","cl":1,"t":0,"bm":"May","dm":28.3,"sa":null},{"i":"CrA","n":"Corona Austrina","m":"The Southern Crown","s":[[32.1,3.8],[9.6,3.3],[1.0,15.8],[0.0,36.8],[5.1,53.6],[19.9,76.7],[56.0,96.7],[100.0,82.7]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7]],"ra":19.0,"dec":-40.0,"nb":["Ara","Sco","Sgr","Tel"],"se":"summer","cl":1,"t":3,"bm":"August","dm":-37.1,"sa":null},{"i":"CrB","n":"Corona Borealis","m":"The Northern Crown","s":[[84.0,13.7],[100.0,44.1],[80.1,77.3],[55.6,83.3],[34.5,86.3],[10.3,74.8],[0.0,33.7]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]],"ra":15.73,"dec":28.1,"nb":["Boo","Her","Ser"],"se":"summer","cl":1,"t":1,"bm":"July","dm":31.4,"sa":null},{"i":"Crv","n":"Corvus","m":"The Crow","s":[[86.2,100.0],[81.8,74.2],[66.0,12.2],[25.0,0.0],[13.8,84.2]],"e":[[0,1],[1,2],[1,4],[2,3],[3,4]],"ra":12.3,"dec":-21.3,"nb":["Crt","Hya","Vir"],"se":"spring","cl":1,"t":2,"bm":"May","dm":-16.5,"sa":null},{"i":"Crt","n":"Crater","m":"The Cup","s":[[33.8,1.3],[56.1,9.1],[65.5,38.4],[100.0,65.4],[78.3,98.7],[58.2,68.2],[55.5,60.0],[20.3,65.4],[0.0,57.1]],"e":[[0,1],[1,2],[2,3],[2,6],[3,4],[4,5],[5,6],[6,7],[7,8]],"ra":11.43,"dec":-16.5,"nb":["Crv","Hya","Leo","Sex","Vir"],"se":"spring","cl":1,"t":2,"bm":"April","dm":-9.8,"sa":null},{"i":"Cru","n":"Crux","m":"The Southern Cross","s":[[15.3,44.2],[84.7,28.2],[59.0,100.0],[50.0,0.0]],"e":[[0,1],[2,3]],"ra":12.5,"dec":-59.7,"nb":["Cen","Mus"],"se":"southern","cl":1,"t":1,"bm":"May","dm":-57.1,"sa":null},{"i":"Cyg","n":"Cygnus","m":"The Swan","s":[[6.4,88.6],[30.3,76.9],[50.4,53.6],[76.6,34.2],[83.8,7.5],[90.3,0.0],[38.0,33.3],[70.4,73.7],[93.6,100.0]],"e":[[0,1],[1,2],[2,3],[2,6],[2,7],[3,4],[4,5],[7,8]],"ra":20.18,"dec":40.7,"nb":["Cep","Dra","Lac","Lyr","Peg","Vul"],"se":"summer","cl":1,"t":1,"bm":"September","dm":53.4,"sa":null},{"i":"Del","n":"Delphinus","m":"The Dolphin","s":[[83.8,100.0],[61.6,31.8],[51.1,4.5],[16.2,0.0],[32.0,21.9]],"e":[[0,1],[1,2],[1,4],[2,3],[3,4]],"ra":20.66,"dec":14.6,"nb":["Aql","Aqr","Equ","Peg","Sge","Vul"],"se":"summer","cl":0,"t":1,"bm":"September","dm":16.1,"sa":"autumn"},{"i":"Dor","n":"Dorado","m":"The Swordfish","s":[[97.3,0.0],[74.4,22.6],[18.8,75.7],[13.2,100.0],[2.7,82.4],[42.0,38.3]],"e":[[0,1],[1,2],[1,5],[2,3],[2,4],[2,5],[3,4]],"ra":5.08,"dec":-59.4,"nb":["Cae","Hor","Hyi","Men","Pic","Ret","Vol"],"se":"southern","cl":1,"t":3,"bm":"January","dm":-51.5,"sa":null},{"i":"Dra","n":"Draco","m":"The Dragon","s":[[18.8,84.9],[14.6,100.0],[26.6,99.3],[26.6,91.0],[4.4,46.9],[20.6,42.5],[36.7,61.2],[51.8,72.1],[61.3,78.8],[74.1,73.3],[89.4,45.4],[92.7,15.1],[99.1,0.0],[21.8,38.6],[0.9,35.5]],"e":[[0,1],[0,3],[0,4],[1,2],[2,3],[4,5],[4,14],[5,6],[5,13],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12]],"ra":17.09,"dec":66.5,"nb":["Boo","Cam","Cep","Cyg","Her","Lyr","UMa","UMi"],"se":"circumpolar","cl":1,"t":2,"bm":"July","dm":72.7,"sa":null},{"i":"Equ","n":"Equuleus","m":"The Little Horse","s":[[36.1,100.0],[43.0,2.6],[63.9,0.0]],"e":[[0,1],[1,2]],"ra":21.23,"dec":8.5,"nb":["Aqr","Del","Peg"],"se":"autumn","cl":0,"t":0,"bm":"September","dm":10.1,"sa":"summer"},{"i":"Eri","n":"Eridanus","m":"The River","s":[[14.1,4.6],[24.1,0.1],[28.3,0.0],[39.8,5.7],[46.4,17.3],[51.4,14.7],[52.6,10.5],[57.2,10.0],[73.3,9.4],[78.1,18.6],[77.0,26.9],[69.3,35.2],[62.6,31.7],[56.8,31.4],[51.6,34.3],[33.5,48.5],[38.5,54.0],[40.7,53.4],[51.2,56.9],[55.7,64.0],[61.3,69.0],[68.8,64.6],[74.8,64.4],[77.0,79.1],[78.7,86.6],[84.5,88.2],[85.9,100.0]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,16],[16,17],[17,18],[18,19],[19,20],[20,21],[21,22],[22,23],[23,24],[24,25],[25,26]],"ra":3.56,"dec":-26.4,"nb":["Cae","Cet","For","Hor","Hyi","Lep","Ori","Phe","Tau"],"se":"winter","cl":0,"t":2,"bm":"December","dm":-3.3,"sa":"autumn"},{"i":"For","n":"Fornax","m":"The Furnace","s":[[0.0,39.1],[34.4,60.9],[100.0,42.0]],"e":[[0,1],[1,2]],"ra":2.7,"dec":-30.4,"nb":["Cet","Eri","Phe","Scl"],"se":"autumn","cl":1,"t":0,"bm":"December","dm":-29.0,"sa":null},{"i":"Gem","n":"Gemini","m":"The Twins","s":[[100.0,47.8],[90.8,48.4],[66.7,36.9],[37.0,12.2],[12.7,3.2],[0.0,21.4],[9.8,27.6],[26.3,52.4],[44.4,59.5],[75.4,79.3],[67.0,96.8],[28.0,79.0]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[7,11],[8,9],[9,10]],"ra":7.06,"dec":23.0,"nb":["Aur","CMi","Cnc","Lyn","Mon","Ori","Tau"],"se":"winter","cl":1,"t":1,"bm":"February","dm":31.9,"sa":null},{"i":"Gru","n":"Grus","m":"The Crane","s":[[12.0,100.0],[23.4,89.5],[27.9,60.4],[42.0,39.6],[66.1,61.0],[42.6,37.9],[59.1,24.2],[71.4,13.0],[88.0,0.0]],"e":[[0,1],[1,2],[2,3],[2,4],[3,4],[5,6],[6,7],[7,8]],"ra":22.44,"dec":-45.1,"nb":["Ind","Mic","Phe","PsA","Scl","Tuc"],"se":"autumn","cl":1,"t":2,"bm":"October","dm":-37.4,"sa":null},{"i":"Her","n":"Hercules","m":"The Hero (Heracles)","s":[[81.6,84.2],[75.1,77.3],[65.9,46.4],[63.9,23.9],[68.5,12.8],[75.4,0.0],[81.9,3.5],[92.1,9.8],[53.4,48.7],[44.3,30.4],[19.1,26.7],[39.1,29.1],[43.0,67.3],[21.8,56.9],[14.7,51.3],[7.9,51.8],[42.3,100.0]],"e":[[0,1],[1,2],[1,16],[2,3],[2,8],[3,4],[3,9],[4,5],[5,6],[6,7],[8,9],[8,12],[9,11],[10,11],[12,13],[13,14],[14,15]],"ra":16.98,"dec":32.8,"nb":["Aql","Boo","CrB","Dra","Lyr","Oph","Ser","Sge","Vul"],"se":"summer","cl":1,"t":2,"bm":"July","dm":46.3,"sa":null},{"i":"Hor","n":"Horologium","m":"The Pendulum Clock","s":[[8.3,0.0],[88.5,35.5],[91.7,44.4],[88.4,54.0],[71.9,78.6],[74.4,100.0]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5]],"ra":3.09,"dec":-54.3,"nb":["Cae","Dor","Eri","Hyi","Ret"],"se":"southern","cl":1,"t":3,"bm":"December","dm":-42.3,"sa":null},{"i":"Hya","n":"Hydra","m":"The Water Serpent","s":[[97.4,22.8],[96.9,23.4],[98.4,26.2],[99.6,26.3],[100.0,23.6],[95.0,23.3],[89.6,27.3],[82.6,31.0],[85.7,39.2],[79.2,45.7],[74.2,43.0],[70.2,47.9],[64.1,47.4],[54.5,65.6],[50.1,68.7],[24.9,61.0],[12.5,69.8],[0.0,77.2]],"e":[[0,1],[0,4],[0,5],[1,2],[2,3],[3,4],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,16],[16,17]],"ra":10.17,"dec":-10.2,"nb":["Ant","CMi","Cen","Cnc","Crt","Crv","Leo","Lib","Mon","Pup","Pyx","Sex","Vir"],"se":"spring","cl":1,"t":3,"bm":"April","dm":6.4,"sa":null},{"i":"Hyi","n":"Hydrus","m":"The Lesser Water Snake","s":[[85.3,100.0],[14.7,81.6],[37.2,39.9],[46.9,41.6],[61.8,35.9],[61.8,0.0]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5]],"ra":2.23,"dec":-70.1,"nb":["Dor","Eri","Hor","Men","Oct","Ret","Tuc"],"se":"southern","cl":1,"t":3,"bm":"December","dm":-61.6,"sa":null},{"i":"Ind","n":"Indus","m":"The Indian","s":[[100.0,4.4],[88.8,42.1],[74.0,95.6],[0.0,73.8],[44.0,54.9]],"e":[[0,1],[0,4],[1,2],[2,3],[3,4]],"ra":21.01,"dec":-52.5,"nb":["Gru","Mic","Oct","Pav","Tel","Tuc"],"se":"southern","cl":1,"t":3,"bm":"September","dm":-47.3,"sa":null},{"i":"Lac","n":"Lacerta","m":"The Lizard","s":[[53.5,0.0],[45.0,13.4],[46.8,31.3],[56.8,39.3],[45.2,62.9],[32.9,54.6],[52.6,19.1],[67.1,86.3],[64.7,100.0]],"e":[[0,1],[0,6],[1,2],[2,3],[2,5],[2,6],[3,4],[4,5],[4,7],[7,8]],"ra":22.43,"dec":46.2,"nb":["And","Cas","Cep","Cyg","Peg"],"se":"autumn","cl":1,"t":2,"bm":"October","dm":52.2,"sa":null},{"i":"Leo","n":"Leo","m":"The Lion","s":[[83.6,74.2],[84.0,57.8],[73.6,47.6],[30.4,44.1],[0.0,62.2],[29.2,61.5],[76.0,35.4],[94.1,25.8],[100.0,33.1]],"e":[[0,1],[0,5],[1,2],[2,3],[2,6],[3,4],[4,5],[6,7],[7,8]],"ra":10.48,"dec":18.8,"nb":["Cnc","Com","Crt","Hya","LMi","Sex","UMa","Vir"],"se":"spring","cl":1,"t":1,"bm":"April","dm":26.0,"sa":null},{"i":"LMi","n":"Leo Minor","m":"The Little Lion","s":[[58.7,50.4],[35.1,59.4],[0.0,54.8],[33.1,41.3],[100.0,40.6]],"e":[[0,1],[0,3],[0,4],[1,2],[2,3]],"ra":10.27,"dec":35.4,"nb":["Leo","Lyn","UMa"],"se":"spring","cl":1,"t":3,"bm":"April","dm":36.7,"sa":null},{"i":"Lep","n":"Lepus","m":"The Hare","s":[[0.0,31.6],[16.2,25.7],[32.3,29.9],[56.1,50.5],[89.1,39.7],[100.0,83.0],[63.4,70.9],[37.3,82.8],[26.0,72.2],[89.2,17.0],[78.4,18.4]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[4,9],[4,10],[5,6],[6,7],[7,8]],"ra":5.54,"dec":-17.3,"nb":["CMa","Cae","Col","Eri","Mon","Ori"],"se":"winter","cl":1,"t":2,"bm":"January","dm":-12.9,"sa":null},{"i":"Lib","n":"Libra","m":"The Scales","s":[[60.5,77.8],[76.9,33.1],[46.4,0.0],[24.5,26.7],[24.5,91.9],[23.1,100.0]],"e":[[0,1],[1,2],[1,3],[2,3],[3,4],[4,5]],"ra":15.31,"dec":-19.3,"nb":["Hya","Lup","Oph","Sco","Ser","Vir"],"se":"summer","cl":0,"t":2,"bm":"June","dm":-9.4,"sa":"spring"},{"i":"Lup","n":"Lupus","m":"The Wolf","s":[[23.9,0.0],[36.7,3.7],[56.7,13.7],[56.6,37.5],[78.9,52.2],[92.1,77.0],[62.9,100.0],[58.4,76.8],[54.9,59.4],[42.5,40.3],[15.7,26.6],[7.9,18.7]],"e":[[0,1],[1,2],[2,3],[3,4],[3,9],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11]],"ra":15.48,"dec":-41.4,"nb":["Cen","Cir","Lib","Nor","Sco"],"se":"summer","cl":0,"t":2,"bm":"June","dm":-33.6,"sa":"spring"},{"i":"Lyn","n":"Lynx","m":"The Lynx","s":[[100.0,2.5],[84.0,10.7],[76.2,46.4],[43.5,70.2],[18.4,73.4],[3.2,89.2],[0.0,97.5]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]],"ra":8.31,"dec":47.2,"nb":["Aur","Cam","Cnc","Gem","LMi","UMa"],"se":"winter","cl":0,"t":3,"bm":"March","dm":59.0,"sa":"spring"},{"i":"Lyr","n":"Lyra","m":"The Lyre","s":[[60.4,29.1],[61.3,0.0],[82.4,11.6],[32.2,39.2],[17.6,100.0],[44.7,90.7]],"e":[[0,1],[0,2],[0,3],[0,5],[1,2],[3,4],[4,5]],"ra":18.79,"dec":36.8,"nb":["Cyg","Dra","Her","Vul"],"se":"summer","cl":1,"t":1,"bm":"August","dm":39.6,"sa":null},{"i":"Men","n":"Mensa","m":"Table Mountain","s":[[0.7,73.9],[52.3,100.0],[99.3,73.8],[95.9,0.0]],"e":[[0,1],[1,2],[2,3]],"ra":5.39,"dec":-74.5,"nb":["Cha","Dor","Hyi","Oct","Vol"],"se":"southern","cl":1,"t":3,"bm":"January","dm":-71.3,"sa":null},{"i":"Mic","n":"Microscopium","m":"The Microscope","s":[[75.6,13.3],[75.2,100.0],[24.4,73.4],[25.8,0.0],[55.7,0.1]],"e":[[0,1],[0,4],[1,2],[2,3],[3,4]],"ra":21.02,"dec":-36.2,"nb":["Cap","Gru","Ind","PsA","Sgr"],"se":"autumn","cl":0,"t":3,"bm":"September","dm":-32.2,"sa":"summer"},{"i":"Mon","n":"Monoceros","m":"The Unicorn","s":[[24.6,84.3],[0.0,61.2],[50.1,52.2],[87.7,75.2],[100.0,72.6],[71.1,42.0],[92.2,34.3],[84.2,24.7],[77.1,15.7]],"e":[[0,1],[1,2],[2,3],[2,5],[3,4],[5,6],[6,7],[7,8]],"ra":6.94,"dec":-0.3,"nb":["CMa","CMi","Gem","Hya","Lep","Ori","Pup"],"se":"winter","cl":1,"t":3,"bm":"February","dm":9.9,"sa":null},{"i":"Mus","n":"Musca","m":"The Fly","s":[[100.0,13.7],[53.7,26.3],[27.6,43.0],[14.9,28.7],[0.0,80.2],[34.1,86.3]],"e":[[0,1],[1,2],[2,3],[2,5],[3,4],[4,5]],"ra":12.5,"dec":-69.3,"nb":["Aps","Car","Cen","Cha","Cir","Cru"],"se":"southern","cl":1,"t":3,"bm":"May","dm":-66.7,"sa":null},{"i":"Nor","n":"Norma","m":"The Carpenter's Square","s":[[80.9,0.0],[10.0,48.7],[36.0,100.0],[90.0,81.6]],"e":[[0,1],[0,3],[1,2],[2,3]],"ra":16.21,"dec":-47.5,"nb":["Ara","Cir","Lup","Sco","TrA"],"se":"southern","cl":1,"t":3,"bm":"July","dm":-45.2,"sa":null},{"i":"Oct","n":"Octans","m":"The Octant","s":[[100.0,89.0],[0.5,50.8],[0.0,11.0]],"e":[[0,1],[0,2],[1,2]],"ra":19.7,"dec":-85.1,"nb":["Aps","Cha","Hyi","Ind","Men","Pav","Tuc"],"se":"southern","cl":1,"t":3,"bm":"September","dm":-77.4,"sa":null},{"i":"Oph","n":"Ophiuchus","m":"The Serpent Bearer","s":[[19.7,53.1],[25.6,23.5],[28.2,19.1],[33.2,0.0],[55.1,7.7],[70.7,25.1],[80.3,38.6],[77.9,40.9],[66.7,54.4],[47.9,66.3],[69.9,68.6],[72.0,73.0],[73.5,76.8],[72.4,84.8],[41.8,88.2],[39.4,100.0]],"e":[[0,1],[1,2],[2,3],[2,9],[3,4],[4,5],[4,8],[5,6],[6,7],[7,8],[8,9],[8,10],[9,14],[10,11],[11,12],[12,13],[14,15]],"ra":17.0,"dec":-8.0,"nb":["Aql","Her","Lib","Sco","Ser","Sgr"],"se":"summer","cl":1,"t":2,"bm":"July","dm":12.6,"sa":null},{"i":"Ori","n":"Orion","m":"The Hunter","s":[[20.2,18.2],[31.3,0.0],[23.7,0.2],[16.6,19.9],[23.9,35.4],[29.7,42.9],[54.4,46.6],[79.1,33.8],[76.5,61.9],[80.0,59.4],[82.4,48.8],[83.4,44.3],[82.7,37.9],[77.6,22.6],[70.9,16.4],[66.7,15.9],[63.2,95.0],[55.0,75.6],[48.7,68.6],[46.2,34.7],[41.4,74.1],[35.6,100.0],[45.2,71.6]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[5,19],[5,20],[6,7],[6,18],[6,19],[7,12],[7,13],[8,9],[9,10],[10,11],[11,12],[13,14],[14,15],[16,17],[17,18],[18,22],[20,21],[20,22]],"ra":5.44,"dec":6.5,"nb":["Eri","Gem","Lep","Mon","Tau"],"se":"winter","cl":1,"t":1,"bm":"January","dm":20.3,"sa":null},{"i":"Pav","n":"Pavo","m":"The Peacock","s":[[18.9,15.5],[19.0,58.8],[34.8,55.3],[71.8,38.4],[87.3,38.7],[91.5,50.2],[100.0,58.7],[68.1,79.4],[41.6,84.5],[0.0,62.1]],"e":[[0,1],[1,2],[1,8],[1,9],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8]],"ra":19.57,"dec":-66.3,"nb":["Aps","Ara","Ind","Oct","Tel"],"se":"southern","cl":1,"t":2,"bm":"August","dm":-56.7,"sa":null},{"i":"Peg","n":"Pegasus","m":"The Winged Horse","s":[[78.7,13.0],[59.7,21.8],[47.2,27.5],[8.5,21.1],[0.0,59.4],[45.6,62.6],[57.5,71.1],[61.0,74.7],[82.6,87.0],[100.0,75.8],[55.5,37.2],[57.6,40.0],[82.0,34.3],[95.8,32.3]],"e":[[0,1],[1,2],[2,3],[2,5],[2,10],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[10,11],[11,12],[12,13]],"ra":22.77,"dec":21.1,"nb":["And","Aqr","Cyg","Del","Equ","Lac","Psc","Vul"],"se":"autumn","cl":1,"t":1,"bm":"October","dm":33.2,"sa":null},{"i":"Per","n":"Perseus","m":"The Hero (Perseus)","s":[[16.7,98.7],[7.9,99.7],[5.2,83.1],[7.9,65.7],[18.7,55.9],[21.7,34.5],[26.2,33.1],[34.6,26.4],[46.8,10.9],[54.4,0.3],[53.5,13.5],[44.9,27.2],[45.4,46.8],[47.1,62.9],[44.9,68.6],[49.9,71.6],[54.9,67.8],[53.8,62.2],[6.8,22.3],[0.0,29.4],[3.8,33.0],[61.7,27.3],[100.0,12.3]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[5,20],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12],[11,21],[12,13],[13,14],[13,17],[14,15],[15,16],[16,17],[18,19],[19,20],[21,22]],"ra":3.39,"dec":45.3,"nb":["And","Ari","Aur","Cam","Cas","Tau","Tri"],"se":"autumn","cl":0,"t":2,"bm":"December","dm":55.9,"sa":"winter"},{"i":"Phe","n":"Phoenix","m":"The Phoenix","s":[[81.2,4.4],[29.8,34.6],[0.0,12.3],[1.1,53.7],[29.8,95.6],[100.0,31.3]],"e":[[0,1],[0,5],[1,2],[1,4],[1,5],[2,3],[3,4]],"ra":0.91,"dec":-46.7,"nb":["Eri","For","Gru","Scl","Tuc"],"se":"southern","cl":1,"t":3,"bm":"November","dm":-42.3,"sa":null},{"i":"Pic","n":"Pictor","m":"The Painter's Easel","s":[[14.8,100.0],[79.1,45.3],[85.2,0.0]],"e":[[0,1],[1,2]],"ra":6.09,"dec":-56.6,"nb":["Cae","Car","Col","Dor","Pup","Vol"],"se":"southern","cl":1,"t":0,"bm":"February","dm":-51.1,"sa":null},{"i":"Psc","n":"Pisces","m":"The Fishes","s":[[29.1,30.3],[30.9,17.8],[26.5,24.0],[29.9,38.4],[18.6,50.6],[10.2,64.1],[0.0,78.3],[4.9,77.5],[12.0,72.6],[18.4,71.3],[27.6,68.4],[33.6,67.8],[41.4,68.6],[68.6,70.1],[79.4,72.5],[86.1,70.6],[90.5,72.7],[92.5,77.4],[87.0,82.2],[78.5,81.2],[75.9,77.4],[100.0,75.8]],"e":[[0,1],[0,2],[0,3],[1,2],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[14,20],[15,16],[16,17],[17,18],[17,21],[18,19],[19,20]],"ra":0.56,"dec":9.9,"nb":["And","Aqr","Ari","Cet","Peg","Tri"],"se":"autumn","cl":1,"t":2,"bm":"November","dm":30.1,"sa":null},{"i":"PsA","n":"Piscis Austrinus","m":"The Southern Fish","s":[[23.4,29.4],[0.0,47.3],[3.6,66.0],[8.4,67.8],[36.9,63.4],[68.3,68.1],[100.0,70.6],[97.5,56.5]],"e":[[0,1],[0,5],[1,2],[2,3],[3,4],[4,5],[5,6],[5,7],[6,7]],"ra":22.45,"dec":-31.3,"nb":["Aqr","Cap","Gru","Mic","Scl"],"se":"autumn","cl":1,"t":2,"bm":"October","dm":-27.0,"sa":null},{"i":"Pup","n":"Puppis","m":"The Stern (of a ship)","s":[[85.7,86.5],[58.0,58.1],[43.8,22.2],[40.8,15.8],[31.3,7.9],[24.1,0.0],[14.3,6.2],[21.0,69.7],[18.5,100.0],[32.4,12.3],[36.3,24.5]],"e":[[0,1],[1,2],[2,3],[2,10],[3,4],[4,5],[4,9],[5,6],[6,7],[7,8],[9,10]],"ra":7.72,"dec":-31.1,"nb":["CMa","Car","Col","Hya","Mon","Pic","Pyx","Vel"],"se":"winter","cl":1,"t":3,"bm":"March","dm":-22.9,"sa":null},{"i":"Pyx","n":"Pyxis","m":"The Mariner's Compass","s":[[87.9,100.0],[31.3,60.4],[25.3,43.5],[12.1,0.0]],"e":[[0,1],[1,2],[2,3]],"ra":8.59,"dec":-34.1,"nb":["Ant","Hya","Pup","Vel"],"se":"winter","cl":0,"t":3,"bm":"March","dm":-27.7,"sa":"spring"},{"i":"Ret","n":"Reticulum","m":"The Net (Reticle)","s":[[23.8,56.7],[17.3,0.0],[56.8,37.4],[82.7,100.0]],"e":[[0,1],[0,3],[1,2],[2,3]],"ra":4.1,"dec":-62.1,"nb":["Dor","Hor","Hyi"],"se":"southern","cl":1,"t":3,"bm":"January","dm":-59.3,"sa":null},{"i":"Sge","n":"Sagitta","m":"The Arrow","s":[[100.0,60.8],[60.7,49.2],[0.0,27.0],[95.0,73.0]],"e":[[0,1],[1,2],[1,3]],"ra":19.78,"dec":18.4,"nb":["Aql","Del","Her","Vul"],"se":"summer","cl":1,"t":2,"bm":"September","dm":19.5,"sa":null},{"i":"Sgr","n":"Sagittarius","m":"The Archer","s":[[81.3,73.8],[77.4,65.1],[81.0,49.3],[76.7,33.5],[89.2,19.1],[37.2,100.0],[35.5,86.4],[49.5,48.3],[62.6,38.4],[15.1,93.0],[8.8,70.2],[7.7,38.4],[22.4,32.0],[31.4,30.1],[39.2,32.4],[55.1,35.8],[92.3,52.5],[46.1,40.7],[47.6,20.0],[43.5,17.5],[36.8,10.4],[33.3,6.7],[33.0,0.0],[53.3,17.7],[56.1,23.5]],"e":[[0,1],[1,2],[1,7],[1,16],[2,3],[2,8],[2,16],[3,4],[3,8],[5,6],[6,7],[7,8],[7,17],[8,15],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,17],[15,18],[15,24],[18,19],[18,23],[19,20],[20,21],[21,22],[23,24]],"ra":18.99,"dec":-27.8,"nb":["Aql","Cap","CrA","Mic","Oph","Sco","Sct","Ser","Tel"],"se":"summer","cl":1,"t":2,"bm":"August","dm":-16.0,"sa":null},{"i":"Sco","n":"Scorpius","m":"The Scorpion","s":[[97.5,27.6],[97.5,12.5],[93.4,0.0],[76.3,23.8],[68.2,27.0],[61.9,34.4],[48.9,60.1],[47.6,76.1],[45.8,94.5],[32.3,98.9],[12.5,100.0],[2.5,89.0],[5.9,83.7],[12.2,74.5]],"e":[[0,1],[1,2],[1,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12],[12,13]],"ra":16.75,"dec":-32.9,"nb":["Ara","CrA","Lib","Lup","Nor","Oph","Sgr"],"se":"summer","cl":1,"t":1,"bm":"July","dm":-19.8,"sa":null},{"i":"Scl","n":"Sculptor","m":"The Sculptor","s":[[-0.0,37.4],[70.8,27.2],[100.0,49.2],[84.8,72.8]],"e":[[0,1],[1,2],[2,3]],"ra":23.92,"dec":-32.3,"nb":["Aqr","Cet","For","Gru","Phe","PsA"],"se":"autumn","cl":1,"t":3,"bm":"November","dm":-28.1,"sa":null},{"i":"Sct","n":"Scutum","m":"The Shield","s":[[57.8,35.5],[27.5,-0.0],[40.0,43.8],[72.5,100.0]],"e":[[0,1],[0,3],[1,2],[2,3]],"ra":18.63,"dec":-9.0,"nb":["Aql","Ser","Sgr"],"se":"summer","cl":1,"t":3,"bm":"August","dm":-4.7,"sa":null},{"i":"Ser","n":"Serpens","m":"The Serpent","s":[[94.1,23.3],[95.9,14.7],[92.6,17.9],[89.1,23.0],[100.0,32.9],[95.6,41.2],[92.4,45.2],[80.9,61.4],[53.6,85.3],[40.3,84.9],[29.4,73.7],[27.3,70.5],[17.9,59.7],[0.0,44.5]],"e":[[0,1],[0,3],[0,4],[1,2],[2,3],[4,5],[5,6],[6,7],[8,9],[9,10],[10,11],[11,12],[12,13]],"ra":16.7,"dec":3.8,"nb":["Aql","Boo","CrB","Her","Lib","Oph","Sct","Sgr","Vir"],"se":"summer","cl":1,"t":0,"bm":"July","dm":19.7,"sa":null},{"i":"Sex","n":"Sextans","m":"The Sextant","s":[[59.4,8.7],[100.0,91.3],[2.2,34.0],[0.0,11.6]],"e":[[0,1],[1,2],[2,3]],"ra":10.25,"dec":-3.0,"nb":["Crt","Hya","Leo"],"se":"spring","cl":1,"t":3,"bm":"April","dm":-0.4,"sa":null},{"i":"Tau","n":"Taurus","m":"The Bull","s":[[0.0,27.4],[45.3,45.2],[50.7,47.3],[57.4,48.1],[55.1,42.1],[50.9,36.9],[11.0,4.3],[71.9,57.9],[98.1,65.8],[70.3,78.3],[100.0,67.9],[91.3,95.7]],"e":[[0,1],[1,2],[2,3],[3,4],[3,7],[4,5],[5,6],[7,8],[8,9],[8,10],[10,11]],"ra":4.24,"dec":14.3,"nb":["Ari","Aur","Cet","Eri","Gem","Ori","Per"],"se":"winter","cl":1,"t":2,"bm":"January","dm":28.6,"sa":null},{"i":"Tel","n":"Telescopium","m":"The Telescope","s":[[98.2,0.4],[10.1,0.0],[1.8,100.0]],"e":[[0,1],[1,2]],"ra":18.37,"dec":-47.0,"nb":["Ara","CrA","Ind","Pav","Sgr"],"se":"southern","cl":1,"t":0,"bm":"August","dm":-46.0,"sa":null},{"i":"Tri","n":"Triangulum","m":"The Triangle","s":[[97.5,100.0],[32.7,0.0],[2.5,20.4]],"e":[[0,1],[0,2],[1,2]],"ra":2.05,"dec":32.0,"nb":["And","Ari","Per","Psc"],"se":"autumn","cl":1,"t":2,"bm":"December","dm":35.0,"sa":null},{"i":"TrA","n":"Triangulum Australe","m":"The Southern Triangle","s":[[0.0,85.9],[63.9,14.1],[100.0,84.8]],"e":[[0,1],[0,2],[1,2]],"ra":16.19,"dec":-67.8,"nb":["Aps","Ara","Cir","Nor"],"se":"southern","cl":1,"t":3,"bm":"July","dm":-63.4,"sa":null},{"i":"Tuc","n":"Tucana","m":"The Toucan","s":[[100.0,43.4],[53.3,25.2],[0.0,63.5],[11.1,73.2],[25.4,74.8],[87.3,71.7]],"e":[[0,1],[0,5],[1,2],[2,3],[3,4],[4,5]],"ra":23.28,"dec":-63.1,"nb":["Gru","Hyi","Ind","Oct","Phe"],"se":"southern","cl":1,"t":3,"bm":"October","dm":-58.2,"sa":null},{"i":"UMa","n":"Ursa Major","m":"The Great Bear","s":[[34.9,28.6],[56.0,21.4],[56.4,33.0],[39.8,37.2],[23.1,26.9],[13.6,24.8],[0.0,31.3],[40.2,50.4],[48.3,83.7],[48.2,87.2],[53.2,58.8],[72.4,64.5],[74.1,61.1],[78.6,14.9],[95.3,12.8],[76.1,24.9],[78.4,35.5],[86.0,38.8],[100.0,42.2],[99.2,44.7]],"e":[[0,1],[0,3],[0,4],[1,2],[1,13],[2,3],[2,15],[2,16],[3,7],[4,5],[5,6],[7,8],[7,10],[8,9],[10,11],[10,12],[13,14],[14,15],[16,17],[17,18],[17,19]],"ra":11.0,"dec":53.1,"nb":["Boo","CVn","Cam","Com","Dra","LMi","Leo","Lyn"],"se":"circumpolar","cl":1,"t":1,"bm":"April","dm":63.1,"sa":null},{"i":"UMi","n":"Ursa Minor","m":"The Little Bear","s":[[46.0,68.8],[35.2,78.9],[55.9,100.0],[65.4,85.8],[34.6,44.8],[37.4,20.1],[44.4,0.0]],"e":[[0,1],[0,3],[0,4],[1,2],[2,3],[4,5],[5,6]],"ra":15.76,"dec":79.7,"nb":["Cam","Cep","Dra"],"se":"circumpolar","cl":1,"t":1,"bm":"July","dm":89.3,"sa":null},{"i":"Vel","n":"Vela","m":"The Sails","s":[[73.0,78.5],[52.2,77.7],[32.8,76.7],[0.0,62.3],[15.7,30.2],[47.2,21.5],[63.2,33.5],[100.0,54.9]],"e":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7]],"ra":9.49,"dec":-49.0,"nb":["Ant","Car","Cen","Pup","Pyx"],"se":"southern","cl":1,"t":3,"bm":"March","dm":-40.5,"sa":null},{"i":"Vir","n":"Virgo","m":"The Maiden","s":[[100.0,35.0],[97.4,45.9],[81.0,51.3],[69.0,53.0],[53.5,61.9],[45.2,74.3],[17.2,63.2],[2.0,62.8],[57.7,25.7],[61.3,42.3],[39.9,51.1],[25.0,46.4],[0.0,45.5]],"e":[[0,1],[1,2],[2,3],[3,4],[3,9],[4,5],[4,10],[5,6],[6,7],[8,9],[10,11],[11,12]],"ra":13.23,"dec":-0.8,"nb":["Boo","Com","Crt","Crv","Hya","Leo","Lib","Ser"],"se":"spring","cl":1,"t":2,"bm":"May","dm":11.0,"sa":null},{"i":"Vol","n":"Volans","m":"The Flying Fish","s":[[0.0,32.6],[35.5,25.5],[52.6,49.4],[99.2,48.7],[100.0,74.5]],"e":[[0,1],[0,2],[1,2],[2,3],[2,4],[3,4]],"ra":8.21,"dec":-68.1,"nb":["Car","Cha","Dor","Men","Pic"],"se":"southern","cl":1,"t":3,"bm":"March","dm":-66.1,"sa":null},{"i":"Vul","n":"Vulpecula","m":"The Little Fox","s":[[100.0,73.7],[77.7,50.4],[36.1,55.2],[24.0,27.8],[0.0,26.3]],"e":[[0,1],[1,2],[2,3],[3,4]],"ra":19.78,"dec":25.2,"nb":["Cyg","Del","Her","Lyr","Peg","Sge"],"se":"summer","cl":1,"t":3,"bm":"September","dm":27.8,"sa":null}];
+const BY = {}; DATA.forEach(c => BY[c.i] = c);
+const SEASONS = ['winter', 'spring', 'summer', 'autumn'];
+const SEASON_LABEL = { winter: 'Winter', spring: 'Spring', summer: 'Summer', autumn: 'Autumn', circumpolar: 'All year (circumpolar)', southern: 'Far south (never rises here)' };
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed) { let a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function shuffle(arr, r) { r = r || Math.random; const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function pick(arr, n, r) { return shuffle(arr, r).slice(0, n); }
+function norm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''); }
+const NAME_INDEX = {}; DATA.forEach(c => { NAME_INDEX[norm(c.n)] = c.i; NAME_INDEX[norm(c.i)] = c.i; });
+NAME_INDEX[norm('Serpens Caput')] = 'Ser'; NAME_INDEX[norm('Serpens Cauda')] = 'Ser'; NAME_INDEX[norm('Big Dipper')] = 'UMa'; NAME_INDEX[norm('Southern Cross')] = 'Cru';
+function findC(text) { return NAME_INDEX[norm(text)] || null; }
+function raStr(c) { const h = Math.floor(c.ra); const m = Math.round((c.ra - h) * 60); return (m === 60 ? h + 1 : h) + 'h ' + String(m === 60 ? 0 : m).padStart(2, '0') + 'm'; }
+function seasonText(c) {
+  if (c.se === 'circumpolar') return 'Circumpolar';
+  if (c.se === 'southern') return 'Far south';
+  return SEASON_LABEL[c.se] + (c.sa ? ' / ' + SEASON_LABEL[c.sa] : '');
+}
+function okSeasons(c) { return [c.se, c.sa].filter(Boolean); }
+function fact(c) {
+  let s = '<b>' + esc(c.n) + '</b> (' + esc(c.i) + ') means \u201C' + esc(c.m.replace(/^The /, '').replace(/^the /, '')) + '\u201D. Its center sits at about ' + raStr(c) + ' of right ascension, ';
+  if (c.se === 'circumpolar') s += 'close enough to the north celestial pole that it circles Polaris and stays up all year from the northern US.';
+  else if (c.se === 'southern') s += 'so far south that it stays below the horizon for most of the northern US.';
+  else s += 'so it is highest in the evening sky around ' + c.bm + ', which makes it a ' + SEASON_LABEL[c.se].toLowerCase() + (c.sa ? ' (or ' + SEASON_LABEL[c.sa].toLowerCase() + ')' : '') + ' constellation.';
+  return s;
+}
+const nbNames = (c) => c.nb.map(i => BY[i].n);
+
+/* BFS over the border graph */
+function bfsPath(a, b) {
+  if (a === b) return [a];
+  const prev = { [a]: null }; const q = [a];
+  while (q.length) { const x = q.shift(); for (const y of BY[x].nb) { if (!(y in prev)) { prev[y] = x; if (y === b) { const p = [b]; let k = x; while (k) { p.unshift(k); k = prev[k]; } return p; } q.push(y); } } }
+  return null;
+}
+
+/* ============ storage ============ */
+const KEY = 'constellation-quest-v1';
+const store = { stars: {}, seen: {}, runs: {}, cleared: {}, best: {}, settings: { simple: false, teacher: false, counter: true } };
+(function load() { try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { Object.assign(store.stars, o.stars || {}); Object.assign(store.seen, o.seen || {}); Object.assign(store.runs, o.runs || {}); Object.assign(store.cleared, o.cleared || {}); Object.assign(store.best, o.best || {}); Object.assign(store.settings, o.settings || {}); } } catch (e) { } })();
+function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { } }
+
+/* ============ figures ============ */
+function figureSVG(c, o) {
+  o = o || {};
+  const lines = o.lines !== false;
+  let s = '<svg viewBox="-8 -8 116 116" role="img" aria-label="' + esc(o.label || 'Star pattern') + '" focusable="false">';
+  if (lines) c.e.forEach(([a, b]) => { s += '<line x1="' + c.s[a][0] + '" y1="' + c.s[a][1] + '" x2="' + c.s[b][0] + '" y2="' + c.s[b][1] + '" stroke="#f0c55a" stroke-width="1.3" stroke-linecap="round"/>'; });
+  c.s.forEach(p => { s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3.6" fill="rgba(255,246,214,.2)"/><circle cx="' + p[0] + '" cy="' + p[1] + '" r="1.9" fill="#fff6d6"/>'; });
+  return s + '</svg>';
+}
+function skyBox(inner, cls, tag) { return '<div class="sky ' + (cls || '') + '">' + (tag ? '<span class="tag">' + esc(tag) + '</span>' : '') + inner + '</div>'; }
+
+/* ============ choice widget ============ */
+function choiceSet(root, o) {
+  const grid = document.createElement('div');
+  grid.className = 'opts' + (o.cols ? ' c' + o.cols : ''); grid.setAttribute('role', 'group');
+  if (o.label) grid.setAttribute('aria-label', o.label);
+  const sel = new Set(), btns = {}, order = [];
+  o.items.forEach((it, n) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'opt' + (o.shape ? ' shape' : ''); b.dataset.id = it.id; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<span class="k" aria-hidden="true">' + (n + 1) + '</span>' + it.html;
+    if (it.label) b.setAttribute('aria-label', (n + 1) + ': ' + it.label);
+    b.addEventListener('click', () => toggle(it.id));
+    btns[it.id] = b; order.push(it.id); grid.append(b);
+  });
+  function paint() { for (const id in btns) btns[id].setAttribute('aria-pressed', sel.has(id) ? 'true' : 'false'); }
+  function toggle(id) { const b = btns[id]; if (!b || b.disabled) return; if (o.multi) { sel.has(id) ? sel.delete(id) : sel.add(id); } else { sel.clear(); sel.add(id); } paint(); o.onChange && o.onChange(); }
+  root.append(grid);
+  return {
+    el: grid, sel, btns, order, toggle,
+    select(id) { if (!o.multi) sel.clear(); sel.add(id); paint(); o.onChange && o.onChange(); },
+    setSel(ids) { sel.clear(); ids.forEach(i => sel.add(i)); paint(); o.onChange && o.onChange(); },
+    kill(id) { const b = btns[id]; if (!b) return; b.disabled = true; b.classList.add('bad'); sel.delete(id); paint(); },
+    mark(id, cls) { btns[id] && btns[id].classList.add(cls); },
+    key(n) { if (order[n]) toggle(order[n]); }
+  };
+}
+const lblBtn = (c) => ({ id: c.i, html: esc(c.n), label: c.n });
+
+/* ============ pools ============ */
+const clearSeason = (s) => DATA.filter(c => c.cl && c.se === s && c.t > 0 && c.se !== 'southern');
+function shapePool(p) { return DATA.filter(c => p === 1 ? c.t === 1 : p === 2 ? (c.t === 1 || c.t === 2) : c.t > 0).map(c => c.i); }
+const wellKnown = DATA.filter(c => c.t === 1 || c.t === 2).map(c => c.i);
+
+/* ============ challenge types ============ */
+/* Each challenge: {prompt, note?, mount(root,ctx), check(), hint(n), explain, cleanup?, key?(n)} */
+function cShapeName(spec, r) {
+  const t = BY[spec.c];
+  const pool = shapePool(spec.pool || 1).filter(i => i !== t.i);
+  const opts = shuffle([t.i].concat(pick(pool, 3, r)));
+  const ch = {
+    prompt: spec.dots ? 'These are the stars with no lines drawn in. Which constellation is it?' : 'Which constellation is this?',
+    note: spec.dots ? 'In the real sky nobody draws the lines for you. Look at the pattern the stars make.' : 'North is up and east is to the left, just like on a printed star chart.',
+    mount(root, ctx) {
+      root.insertAdjacentHTML('beforeend', skyBox(figureSVG(t, { lines: !spec.dots, label: 'A star pattern to identify' }), 'fig'));
+      this.cs = choiceSet(root, { items: opts.map(i => lblBtn(BY[i])), onChange: ctx.changed, label: 'Choose the constellation' });
+    },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Pick an answer first.' };
+      if (s[0] === t.i) return { ok: true };
+      this.cs.kill(s[0]); return { ok: false, msg: 'Not that one. Look at the outline and how many bright stars it has.' };
+    },
+    hint(n) {
+      if (n === 1) return 'Its name means \u201C' + t.m.replace(/^The /, '') + '\u201D.';
+      if (n === 2) { pick(opts.filter(i => i !== t.i && !this.cs.btns[i].disabled), 2, r).forEach(i => this.cs.kill(i)); return 'Two wrong answers are crossed out.'; }
+      this.cs.select(t.i); return 'The answer is ' + t.n + '. Press Check to open the gate.';
+    },
+    explain: fact(t)
+  };
+  return ch;
+}
+
+function cNameShape(spec, r) {
+  const t = BY[spec.c];
+  const pool = shapePool(spec.pool || 1).filter(i => i !== t.i);
+  const opts = shuffle([t.i].concat(pick(pool, 3, r)));
+  return {
+    prompt: 'Which shape is ' + t.n + '?',
+    note: 'North is up and east is to the left, like a printed star chart.',
+    mount(root, ctx) {
+      this.cs = choiceSet(root, { items: opts.map((i, n) => ({ id: i, html: skyBox(figureSVG(BY[i], { label: 'Shape ' + (n + 1) })), label: 'Shape ' + (n + 1) })), shape: true, onChange: ctx.changed, label: 'Choose the shape' });
+    },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Pick a shape first.' };
+      if (s[0] === t.i) return { ok: true };
+      this.cs.kill(s[0]); return { ok: false, msg: 'That shape belongs to a different constellation.' };
+    },
+    hint(n) {
+      if (n === 1) return t.n + ' means \u201C' + t.m.replace(/^The /, '') + '\u201D. Picture that, then look for it.';
+      if (n === 2) { pick(opts.filter(i => i !== t.i && !this.cs.btns[i].disabled), 2, r).forEach(i => this.cs.kill(i)); return 'Two wrong shapes are crossed out.'; }
+      this.cs.select(t.i); return 'The matching shape is selected. Press Check.';
+    },
+    explain: fact(t)
+  };
+}
+
+function cDraw(spec, r) {
+  const t = BY[spec.c]; const N = t.e.length; const flash = !!spec.flash;
+  const target = new Set(t.e.map(([a, b]) => Math.min(a, b) + '-' + Math.max(a, b)));
+  let drawn = new Set(), sel = null, drag = false, rub = null, ro = null, checked = false, timers = [], locked = flash, hintShown = '';
+  let svg, board, counter, ctxRef;
+  const key = (a, b) => Math.min(a, b) + '-' + Math.max(a, b);
+  function pt(ev) { const m = svg.getScreenCTM(); if (!m) return { x: 0, y: 0 }; const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; const q = p.matrixTransform(m.inverse()); return { x: q.x, y: q.y }; }
+  function starAt(p) { let best = null, bd = 49; t.s.forEach((s, i) => { const d = (s[0] - p.x) ** 2 + (s[1] - p.y) ** 2; if (d < bd) { bd = d; best = i; } }); return best; }
+  function toggleEdge(a, b) { const k = key(a, b); drawn.has(k) ? drawn.delete(k) : drawn.add(k); sel = null; checked = false; render(); ctxRef.changed(); }
+  function activate(i) { if (locked) return; if (sel === null) { sel = i; render(); } else if (sel === i) { sel = null; render(); } else toggleEdge(sel, i); }
+  function render() {
+    let h = '';
+    if (flash && locked && ro) t.e.forEach(([a, b]) => { h += '<line class="ln guide" x1="' + t.s[a][0] + '" y1="' + t.s[a][1] + '" x2="' + t.s[b][0] + '" y2="' + t.s[b][1] + '"/>'; });
+    if (!flash && spec.guide) { /* no guide */ }
+    drawn.forEach(k => { const [a, b] = k.split('-').map(Number); const bad = checked && !target.has(k); h += '<line class="ln' + (bad ? ' bad' : '') + '" x1="' + t.s[a][0] + '" y1="' + t.s[a][1] + '" x2="' + t.s[b][0] + '" y2="' + t.s[b][1] + '"/>'; });
+    if (rub) h += '<line class="ln rub" x1="' + t.s[rub.from][0] + '" y1="' + t.s[rub.from][1] + '" x2="' + rub.x + '" y2="' + rub.y + '"/>';
+    t.s.forEach((s, i) => { h += '<g class="star' + (sel === i ? ' sel' : '') + '" data-i="' + i + '" tabindex="' + (locked ? -1 : 0) + '" role="button" aria-label="Star ' + (i + 1) + (sel === i ? ', selected' : '') + '"><circle class="halo" cx="' + s[0] + '" cy="' + s[1] + '" r="' + (sel === i ? 6.5 : 5) + '"/><circle class="core" cx="' + s[0] + '" cy="' + s[1] + '" r="1.9"/></g>'; });
+    const keep = document.activeElement && document.activeElement.dataset && document.activeElement.closest && document.activeElement.closest('.board') ? document.activeElement.dataset.i : null;
+    svg.innerHTML = h;
+    if (keep != null) { const g = svg.querySelector('[data-i="' + keep + '"]'); g && g.focus({ preventScroll: true }); }
+    updCounter();
+  }
+  function updCounter() {
+    if (!counter) return;
+    const show = store.settings.counter && (!flash || checked);
+    counter.hidden = !show; counter.textContent = 'Lines drawn: ' + drawn.size + ' of ' + N;
+  }
+  return {
+    prompt: flash ? 'Memory gate: draw ' + t.n + ' from memory.' : 'Draw ' + t.n + '. Connect the stars.',
+    note: flash ? 'The figure shows for a few seconds, then it disappears. Then tap one star and another to draw each line.' : 'Tap a star, then another star, to draw a line between them. Tap the same pair again to erase it. Drag works too.',
+    mount(root, ctx) {
+      ctxRef = ctx;
+      board = document.createElement('div'); board.className = 'board sky';
+      board.innerHTML = '<svg viewBox="-8 -8 116 116" role="group" aria-label="Star board for ' + esc(t.n) + '"></svg>';
+      svg = board.firstChild; root.append(board);
+      counter = document.createElement('div'); counter.className = 'counter'; counter.setAttribute('aria-live', 'polite'); root.append(counter);
+      svg.addEventListener('pointerdown', e => {
+        if (locked) return; const i = starAt(pt(e)); if (i === null) return; e.preventDefault();
+        if (sel !== null && sel !== i) { toggleEdge(sel, i); return; }
+        if (sel === i) { sel = null; drag = false; rub = null; render(); return; }
+        sel = i; drag = true; rub = { from: i, x: t.s[i][0], y: t.s[i][1] }; render();
+        try { svg.setPointerCapture(e.pointerId); } catch (_) { }
+      });
+      svg.addEventListener('pointermove', e => { if (!drag) return; const p = pt(e); rub = { from: sel, x: p.x, y: p.y }; render(); });
+      svg.addEventListener('pointerup', e => {
+        if (!drag) return; drag = false; const j = starAt(pt(e)); rub = null;
+        if (j !== null && j !== sel) toggleEdge(sel, j); else render();
+      });
+      svg.addEventListener('keydown', e => {
+        const g = e.target.closest && e.target.closest('[data-i]'); if (!g) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); activate(+g.dataset.i); }
+      });
+      render();
+      if (flash) {
+        ro = 1; let left = 6; const msg = document.createElement('div'); msg.className = 'mem'; board.append(msg);
+        const tick = () => { if (left > 0) { msg.textContent = 'Memorize it. ' + left + '\u2026'; left--; render(); timers.push(setTimeout(tick, 1000)); } else { ro = null; locked = false; msg.textContent = ''; render(); } };
+        tick();
+      }
+    },
+    cleanup() { timers.forEach(clearTimeout); },
+    check() {
+      if (locked) return { empty: true, msg: 'Wait until the figure disappears, then draw it.' };
+      if (!drawn.size) return { empty: true, msg: 'Draw at least one line first.' };
+      const extra = [...drawn].filter(k => !target.has(k)).length, miss = [...target].filter(k => !drawn.has(k)).length;
+      checked = true; render();
+      if (!extra && !miss) return { ok: true };
+      const parts = []; if (extra) parts.push(extra + ' of your lines ' + (extra === 1 ? "doesn't" : "don't") + ' belong (shown in red)'); if (miss) parts.push(miss + ' line' + (miss === 1 ? ' is' : 's are') + ' missing');
+      return { ok: false, msg: parts.join(', and ') + '.' };
+    },
+    hint(n) {
+      if (n === 1) { if (flash && locked === false) { locked = true; ro = 1; render(); timers.push(setTimeout(() => { ro = null; locked = false; render(); }, 4000)); return 'The figure is back for 4 seconds. It has ' + N + ' lines.'; } return 'The figure has ' + N + ' lines.'; }
+      if (n === 2) { const missing = [...target].filter(k => !drawn.has(k)); missing.slice(0, Math.ceil(missing.length / 2)).forEach(k => drawn.add(k)); checked = false; render(); return 'I drew about half of the missing lines for you.'; }
+      drawn = new Set(target); checked = false; locked = false; ro = null; render(); return 'The whole figure is drawn. Press Check.';
+    },
+    explain: fact(t)
+  };
+}
+
+function seasonItems(extra) {
+  const items = SEASONS.map(s => ({ id: s, html: SEASON_LABEL[s], label: SEASON_LABEL[s] }));
+  if (extra) { items.push({ id: 'circumpolar', html: 'All year (circumpolar)', label: 'All year, circumpolar' }); items.push({ id: 'southern', html: 'Far south (never rises here)', label: 'Far south, never rises here' }); }
+  return items;
+}
+function cSeasonOne(spec, r) {
+  const t = BY[spec.c]; const extra = t.se === 'circumpolar' || t.se === 'southern' || spec.extra;
+  const good = okSeasons(t);
+  return {
+    prompt: 'When is ' + t.n + ' highest in the evening sky?',
+    note: 'Evening means about 9 pm. Think of the mid-northern United States.',
+    mount(root, ctx) {
+      root.insertAdjacentHTML('beforeend', skyBox(figureSVG(t, { label: t.n + ' star pattern' }), 'fig', t.n));
+      this.cs = choiceSet(root, { items: seasonItems(extra), cols: extra ? 3 : 2, onChange: ctx.changed, label: 'Choose a season' });
+    },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Pick a season first.' };
+      if (good.includes(s[0])) return { ok: true };
+      this.cs.kill(s[0]); return { ok: false, msg: 'Not that one. Where is its right ascension compared with where the Sun is in that season?' };
+    },
+    hint(n) {
+      if (n === 1) {
+        if (t.se === 'circumpolar') return 'Look at its declination: it is very far north, near Polaris.';
+        if (t.se === 'southern') return 'Its stars are far south of the celestial equator.';
+        const mates = pick(DATA.filter(c => c.cl && c.t > 0 && c.se === t.se && c.i !== t.i), 1, r)[0];
+        return mates ? mates.n + ' is highest in the same season.' : 'Its center is at ' + raStr(t) + '.';
+      }
+      if (n === 2) { pick(this.cs.order.filter(i => !good.includes(i) && !this.cs.btns[i].disabled), 2, r).forEach(i => this.cs.kill(i)); return 'Two wrong seasons are crossed out.'; }
+      this.cs.select(good[0]); return 'The answer is selected. Press Check.';
+    },
+    explain: fact(t)
+  };
+}
+function cSeasonPick(spec, r) {
+  const S = spec.season; const t = BY[spec.c];
+  const others = SEASONS.filter(s => s !== S);
+  const wrong = others.map(s => pick(clearSeason(s).filter(c => c.t <= 2), 1, r)[0]);
+  const opts = shuffle([t].concat(wrong), r);
+  return {
+    prompt: 'Which of these belongs to the ' + SEASON_LABEL[S].toLowerCase() + ' evening sky?',
+    note: 'Evening means about 9 pm, seen from the mid-northern United States.',
+    mount(root, ctx) { this.cs = choiceSet(root, { items: opts.map(lblBtn), onChange: ctx.changed, label: 'Choose a constellation' }); },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Pick one first.' };
+      if (s[0] === t.i) return { ok: true };
+      this.cs.kill(s[0]); const c = BY[s[0]]; return { ok: false, msg: c.n + ' is a ' + SEASON_LABEL[c.se].toLowerCase() + ' constellation, not ' + SEASON_LABEL[S].toLowerCase() + '.' };
+    },
+    hint(n) {
+      if (n === 1) return 'One of them means \u201C' + t.m.replace(/^The /, '') + '\u201D.';
+      if (n === 2) { pick(opts.filter(c => c.i !== t.i && !this.cs.btns[c.i].disabled), 2, r).forEach(c => this.cs.kill(c.i)); return 'Two wrong answers are crossed out.'; }
+      this.cs.select(t.i); return 'The answer is selected. Press Check.';
+    },
+    explain: fact(t)
+  };
+}
+function cSeasonOdd(spec, r) {
+  const S = spec.season; const t = BY[spec.c];
+  const same = pick(clearSeason(S).filter(c => c.t <= 2 && c.i !== t.i), 3, r);
+  const opts = shuffle([t].concat(same), r);
+  return {
+    prompt: 'Which one is NOT a ' + SEASON_LABEL[S].toLowerCase() + ' constellation?',
+    note: 'Three of these are highest in the ' + SEASON_LABEL[S].toLowerCase() + ' evening sky. One is not.',
+    mount(root, ctx) { this.cs = choiceSet(root, { items: opts.map(lblBtn), onChange: ctx.changed, label: 'Choose the odd one out' }); },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Pick one first.' };
+      if (s[0] === t.i) return { ok: true };
+      this.cs.kill(s[0]); return { ok: false, msg: BY[s[0]].n + ' really is a ' + SEASON_LABEL[S].toLowerCase() + ' constellation.' };
+    },
+    hint(n) {
+      if (n === 1) return 'The odd one out is highest in the sky around ' + t.bm + '.';
+      if (n === 2) { pick(opts.filter(c => c.i !== t.i && !this.cs.btns[c.i].disabled), 2, r).forEach(c => this.cs.kill(c.i)); return 'Two of the in-season constellations are crossed out.'; }
+      this.cs.select(t.i); return 'The odd one is selected. Press Check.';
+    },
+    explain: fact(t) + ' The other three are ' + SEASON_LABEL[S].toLowerCase() + ' constellations: ' + same.map(c => c.n).join(', ') + '.'
+  };
+}
+function cSeasonSort(spec, r) {
+  const ids = spec.ids; const ans = {}; ids.forEach(i => ans[i] = BY[i].se);
+  const cur = {}; let rows = {}, checked = false, ctxRef;
+  function paint() { ids.forEach(i => { $$('button', rows[i]).forEach(b => b.setAttribute('aria-pressed', cur[i] === b.dataset.s ? 'true' : 'false')); rows[i].classList.remove('good', 'bad'); if (checked && cur[i]) rows[i].classList.add(cur[i] === ans[i] ? 'good' : 'bad'); }); }
+  return {
+    prompt: 'Sort these constellations into the seasons when they are highest in the evening sky.',
+    note: 'Evening means about 9 pm, seen from the mid-northern United States. Choose one season for each.',
+    mount(root, ctx) {
+      ctxRef = ctx; const wrap = document.createElement('div'); root.append(wrap);
+      ids.forEach(i => {
+        const c = BY[i]; const row = document.createElement('div'); row.className = 'sortrow'; rows[i] = row;
+        row.innerHTML = skyBox(figureSVG(c, { label: c.n })) + '<div><div class="nm">' + esc(c.n) + '</div><div class="sg" role="group" aria-label="Season for ' + esc(c.n) + '">' + SEASONS.map(s => '<button type="button" data-s="' + s + '" aria-pressed="false">' + SEASON_LABEL[s] + '</button>').join('') + '</div></div>';
+        row.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; cur[i] = b.dataset.s; checked = false; paint(); ctx.changed(); });
+        wrap.append(row);
+      });
+    },
+    check() {
+      if (ids.some(i => !cur[i])) return { empty: true, msg: 'Choose a season for every constellation first.' };
+      checked = true; paint(); const bad = ids.filter(i => cur[i] !== ans[i]).length;
+      return bad ? { ok: false, msg: bad + ' of the ' + ids.length + ' are in the wrong season (marked red).' } : { ok: true };
+    },
+    hint(n) {
+      if (n === 1) { const cnt = {}; ids.forEach(i => cnt[ans[i]] = (cnt[ans[i]] || 0) + 1); return 'Count by season: ' + SEASONS.map(s => (cnt[s] || 0) + ' ' + SEASON_LABEL[s].toLowerCase()).join(', ') + '.'; }
+      if (n === 2) { const todo = ids.filter(i => cur[i] !== ans[i]); todo.slice(0, 2).forEach(i => cur[i] = ans[i]); checked = false; paint(); return 'I placed ' + Math.min(2, todo.length) + ' of them for you.'; }
+      ids.forEach(i => cur[i] = ans[i]); checked = false; paint(); return 'All are placed. Press Check.';
+    },
+    explain: ids.map(i => BY[i].n + ' (' + SEASON_LABEL[BY[i].se].toLowerCase() + ', around ' + BY[i].bm + ')').join('; ') + '.'
+  };
+}
+function cCircum(spec, r) {
+  const yes = spec.yes, no = spec.no; const opts = shuffle(yes.concat(no), r);
+  return {
+    prompt: 'Select every constellation that never sets for people in the northern United States.',
+    note: 'Stars near the north celestial pole circle Polaris and stay above the horizon all night, all year. Select all that apply.',
+    mount(root, ctx) { this.cs = choiceSet(root, { items: opts.map(i => lblBtn(BY[i])), multi: true, cols: 3, onChange: ctx.changed, label: 'Select all that never set' }); },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Select at least one.' };
+      const wrong = s.filter(i => !yes.includes(i)).length, miss = yes.filter(i => !s.includes(i)).length;
+      if (!wrong && !miss) return { ok: true };
+      return { ok: false, msg: (wrong ? wrong + ' of your picks ' + (wrong === 1 ? 'does' : 'do') + ' set. ' : '') + (miss ? 'You missed ' + miss + '.' : '') };
+    },
+    hint(n) {
+      if (n === 1) return yes.length + ' of the ' + opts.length + ' never set.';
+      if (n === 2) { pick(opts.filter(i => !yes.includes(i)), 2, r).forEach(i => this.cs.kill(i)); return 'Two constellations that do set are crossed out.'; }
+      this.cs.setSel(yes); return 'The right ones are selected. Press Check.';
+    },
+    explain: yes.map(i => BY[i].n).join(', ') + ' are circumpolar: they circle Polaris without setting. ' + no.map(i => BY[i].n).join(', ') + ' rise and set.'
+  };
+}
+
+function cNbPick(spec, r) {
+  const t = BY[spec.c]; const a = BY[spec.a || pick(t.nb, 1, r)[0]];
+  const far = pick(wellKnown.filter(i => i !== t.i && !t.nb.includes(i)), 3, r);
+  const opts = shuffle([a.i].concat(far), r);
+  return {
+    prompt: 'Which constellation shares a border with ' + t.n + '?',
+    note: 'Neighbors share a border line on the official IAU map.',
+    mount(root, ctx) { root.insertAdjacentHTML('beforeend', skyBox(figureSVG(t, { label: t.n }), 'fig', t.n)); this.cs = choiceSet(root, { items: opts.map(i => lblBtn(BY[i])), onChange: ctx.changed, label: 'Choose a neighbor' }); },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Pick one first.' };
+      if (t.nb.includes(s[0])) return { ok: true };
+      this.cs.kill(s[0]); return { ok: false, msg: BY[s[0]].n + ' does not touch ' + t.n + '.' };
+    },
+    hint(n) {
+      if (n === 1) return t.n + ' has ' + t.nb.length + ' neighbors. One of them means \u201C' + a.m.replace(/^The /, '') + '\u201D.';
+      if (n === 2) { pick(opts.filter(i => !t.nb.includes(i) && !this.cs.btns[i].disabled), 2, r).forEach(i => this.cs.kill(i)); return 'Two non-neighbors are crossed out.'; }
+      this.cs.select(a.i); return 'A neighbor is selected. Press Check.';
+    },
+    explain: '<b>' + esc(t.n) + '</b> borders ' + t.nb.length + ' constellations: ' + nbNames(t).map(esc).join(', ') + '.'
+  };
+}
+function cNbOdd(spec, r) {
+  const t = BY[spec.c]; const odd = BY[spec.odd];
+  const yes = pick(t.nb.filter(i => BY[i].t > 0 || true), 3, r);
+  const opts = shuffle(yes.concat([odd.i]), r);
+  return {
+    prompt: 'Which one does NOT border ' + t.n + '?',
+    note: 'Three of these share a border line with ' + t.n + '. One does not.',
+    mount(root, ctx) { root.insertAdjacentHTML('beforeend', skyBox(figureSVG(t, { label: t.n }), 'fig', t.n)); this.cs = choiceSet(root, { items: opts.map(i => lblBtn(BY[i])), onChange: ctx.changed, label: 'Choose the one that is not a neighbor' }); },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Pick one first.' };
+      if (s[0] === odd.i) return { ok: true };
+      this.cs.kill(s[0]); return { ok: false, msg: BY[s[0]].n + ' does border ' + t.n + '.' };
+    },
+    hint(n) {
+      if (n === 1) return t.n + ' has ' + t.nb.length + ' neighbors in all.';
+      if (n === 2) { pick(opts.filter(i => i !== odd.i && !this.cs.btns[i].disabled), 2, r).forEach(i => this.cs.kill(i)); return 'Two real neighbors are crossed out.'; }
+      this.cs.select(odd.i); return 'The odd one is selected. Press Check.';
+    },
+    explain: '<b>' + esc(t.n) + '</b> borders ' + nbNames(t).map(esc).join(', ') + '. ' + esc(odd.n) + ' is close, but it does not touch.'
+  };
+}
+function cNbMulti(spec, r) {
+  const t = BY[spec.c]; const yes = t.nb.slice(); const total = Math.max(8, yes.length + 3);
+  const far = pick(wellKnown.filter(i => i !== t.i && !t.nb.includes(i)), total - yes.length, r);
+  const opts = shuffle(yes.concat(far), r);
+  return {
+    prompt: 'Select every constellation that borders ' + t.n + '.',
+    note: 'Select all that apply. Touching at only a corner does not count.',
+    mount(root, ctx) { root.insertAdjacentHTML('beforeend', skyBox(figureSVG(t, { label: t.n }), 'fig', t.n)); this.cs = choiceSet(root, { items: opts.map(i => lblBtn(BY[i])), multi: true, cols: 2, onChange: ctx.changed, label: 'Select all neighbors' }); this.ctx = ctx; },
+    key(n) { this.cs.key(n); },
+    check() {
+      const s = [...this.cs.sel]; if (!s.length) return { empty: true, msg: 'Select at least one.' };
+      const wrong = s.filter(i => !yes.includes(i)).length, miss = yes.filter(i => !s.includes(i)).length;
+      if (!wrong && !miss) return { ok: true };
+      return { ok: false, msg: (wrong ? wrong + ' of your picks ' + (wrong === 1 ? "isn't" : "aren't") + ' a neighbor. ' : '') + (miss ? 'You are missing ' + miss + '.' : '') };
+    },
+    hint(n) {
+      if (n === 1) return t.n + ' has exactly ' + yes.length + ' neighbors.';
+      if (n === 2) { pick(opts.filter(i => !yes.includes(i)), 2, r).forEach(i => this.cs.kill(i)); return 'Two non-neighbors are crossed out.'; }
+      this.cs.setSel(yes); return 'The neighbors are selected. Press Check.';
+    },
+    explain: '<b>' + esc(t.n) + '</b> borders ' + nbNames(t).map(esc).join(', ') + '.'
+  };
+}
+function cHop(spec) {
+  const A = BY[spec.from], B = BY[spec.to]; const best = bfsPath(A.i, B.i); const need = best.length - 1;
+  let path = [A.i], box, ctxRef, self;
+  function render() {
+    const here = path[path.length - 1];
+    $('.path', box).innerHTML = path.map((i, n) => '<span class="pill' + (n === path.length - 1 ? ' here' : '') + '">' + esc(BY[i].n) + '</span>').join('<span class="arrow" aria-hidden="true">\u2192</span>') + '<span class="arrow" aria-hidden="true">\u2192</span><span class="pill goal">' + esc(B.n) + '</span>';
+    const holder = $('.hopopts', box); holder.innerHTML = '';
+    const nbs = BY[here].nb.filter(i => !path.includes(i) || i === B.i);
+    self.cs = choiceSet(holder, { items: nbs.map(i => lblBtn(BY[i])), cols: 2, label: 'Cross into a neighboring constellation', onChange() { const id = [...self.cs.sel][0]; if (id) { path.push(id); render(); ctxRef.changed(); } } });
+    const here2 = here === B.i; $('.hopstate', box).textContent = here2 ? 'You arrived at ' + B.n + '. Press Check.' : 'You are in ' + BY[here].n + '. Cross a border into one of its neighbors.';
+  }
+  return self = {
+    enterToggles: true,
+    prompt: 'Hop from ' + A.n + ' to ' + B.n + ' by crossing borders.',
+    note: 'Each hop must go into a constellation that shares a border with the one you are in. Fewer hops is better.',
+    mount(root, ctx) {
+      ctxRef = ctx; box = document.createElement('div'); box.className = 'hop';
+      box.innerHTML = '<div class="path" aria-live="polite"></div><p class="hopstate" aria-live="polite"></p><div class="hopopts"></div><div class="actions"><button type="button" class="btn small" id="hop-undo">Undo last hop</button><button type="button" class="btn small" id="hop-reset">Start over</button></div>';
+      root.append(box);
+      $('#hop-undo', box).onclick = () => { if (path.length > 1) { path.pop(); render(); ctx.changed(); } };
+      $('#hop-reset', box).onclick = () => { path = [A.i]; render(); ctx.changed(); };
+      render();
+    },
+    key(n) { this.cs && this.cs.key(n); },
+    check() {
+      if (path[path.length - 1] !== B.i) return { empty: true, msg: 'You are not at ' + B.n + ' yet.' };
+      const extra = Math.max(0, path.length - 1 - need); return { ok: true, penalty: Math.min(2, extra) };
+    },
+    hint(n) {
+      if (n === 1) return 'The shortest trip is ' + need + ' hops.';
+      if (n === 2) { const here = path[path.length - 1]; const p = bfsPath(here, B.i); return p && p.length > 1 ? 'From ' + BY[here].n + ', a good next hop is ' + BY[p[1]].n + '.' : 'You are already there.'; }
+      path = best.slice(); render(); return 'A shortest route is filled in. Press Check.';
+    },
+    explain: 'A shortest route is ' + best.map(i => BY[i].n).join(' \u2192 ') + ' (' + need + ' hops).'
+  };
+}
+function cNbType(spec, r) {
+  const t = BY[spec.c]; const k = spec.n || 4; let inputs = [], dl;
+  const sorted = shuffle(t.nb, r);
+  return {
+    prompt: 'Name ' + k + ' constellations that border ' + t.n + '.',
+    note: 'Type a name like Orion or an abbreviation like Ori. The list suggests names as you type.',
+    mount(root, ctx) {
+      root.insertAdjacentHTML('beforeend', skyBox(figureSVG(t, { label: t.n }), 'fig', t.n));
+      const wrap = document.createElement('div'); wrap.className = 'typed';
+      dl = '<datalist id="cnames">' + DATA.map(c => '<option value="' + esc(c.n) + '">').join('') + '</datalist>';
+      wrap.innerHTML = dl; root.append(wrap);
+      for (let i = 0; i < k; i++) { const inp = document.createElement('input'); inp.type = 'text'; inp.setAttribute('list', 'cnames'); inp.autocomplete = 'off'; inp.spellcheck = false; inp.setAttribute('aria-label', 'Neighbor ' + (i + 1)); inp.addEventListener('input', () => { inp.className = ''; ctx.changed(); }); wrap.append(inp); inputs.push(inp); }
+    },
+    check() {
+      const vals = inputs.map(i => i.value.trim()); if (!vals.some(Boolean)) return { empty: true, msg: 'Type at least one name first.' };
+      let good = 0, bad = 0, msgs = []; const seen = new Set();
+      inputs.forEach((inp, n) => {
+        const v = vals[n]; inp.className = ''; if (!v) return; const id = findC(v);
+        if (!id) { bad++; inp.className = 'bad'; msgs.push('\u201C' + v + '\u201D is not a constellation name.'); }
+        else if (id === t.i) { bad++; inp.className = 'bad'; msgs.push('A constellation can\u2019t border itself.'); }
+        else if (seen.has(id)) { bad++; inp.className = 'bad'; msgs.push(BY[id].n + ' is listed twice.'); }
+        else if (!t.nb.includes(id)) { bad++; inp.className = 'bad'; seen.add(id); msgs.push(BY[id].n + ' does not border ' + t.n + '.'); }
+        else { good++; seen.add(id); inp.className = 'good'; }
+      });
+      if (good >= k && !bad) return { ok: true };
+      if (good >= k) return { ok: true };
+      return { ok: false, msg: (msgs.slice(0, 2).join(' ')) + (msgs.length ? ' ' : '') + good + ' of ' + k + ' correct so far.' };
+    },
+    hint(n) {
+      if (n === 1) return t.n + ' has ' + t.nb.length + ' neighbors. One of them means \u201C' + BY[sorted[0]].m.replace(/^The /, '') + '\u201D.';
+      if (n === 2) return 'Some first letters: ' + sorted.slice(0, k).map(i => BY[i].n[0]).join(', ') + '.';
+      sorted.slice(0, k).forEach((i, n2) => { inputs[n2].value = BY[i].n; }); return 'Neighbors are filled in. Press Check.';
+    },
+    explain: '<b>' + esc(t.n) + '</b> borders ' + nbNames(t).map(esc).join(', ') + '.'
+  };
+}
+
+const KINDS = { 'shape-name': cShapeName, 'name-shape': cNameShape, 'draw': cDraw, 'season-one': cSeasonOne, 'season-pick': cSeasonPick, 'season-odd': cSeasonOdd, 'season-sort': cSeasonSort, 'circum': cCircum, 'nb-pick': cNbPick, 'nb-odd': cNbOdd, 'nb-multi': cNbMulti, 'hop': cHop, 'nb-type': cNbType };
+function makeChallenge(spec, seed) { return KINDS[spec.k](spec, rng(hash(seed))); }
+function litIds(spec) { return spec.lit || (spec.k === 'hop' ? [spec.from, spec.to] : spec.k === 'season-sort' ? spec.ids : spec.k === 'circum' ? spec.yes : [spec.c]); }
+
+/* ============ gate modal controller ============ */
+const modal = $('#modal'), sheet = $('#sheet');
+let modalOpener = null, activeCh = null, onModalClose = null, modalMode = null;
+function openModal(html) { modalOpener = document.activeElement; sheet.innerHTML = html; modal.hidden = false; sheet.scrollTop = 0; }
+function closeModal() {
+  if (activeCh && activeCh.cleanup) activeCh.cleanup(); activeCh = null;
+  modal.hidden = true; sheet.innerHTML = ''; modalMode = null;
+  if (modalOpener && modalOpener.focus && document.contains(modalOpener)) { try { modalOpener.focus({ preventScroll: true }); } catch (e) { } }
+  const cb = onModalClose; onModalClose = null; cb && cb();
+}
+function starsText(n) { return '\u2605'.repeat(n) + '\u2606'.repeat(3 - n); }
+
+function runGate(info) {
+  /* info: {title, where, spec, seed, onSolved(stars), prevStars, onClose} */
+  const ch = makeChallenge(info.spec, info.seed);
+  activeCh = ch; modalMode = 'gate'; onModalClose = info.onClose || null;
+  let hints = 0, wrong = 0, revealed = false, done = false;
+  openModal('<div class="mh"><div class="where">' + esc(info.where) + '</div><button class="x" type="button" id="g-x" aria-label="Close and walk away">\u00D7</button></div><h2 class="q" id="m-title"></h2><p class="note" id="g-note"></p><div id="g-body"></div><div class="fb" id="g-fb" role="status" aria-live="polite"></div><div class="actions"><button class="btn" type="button" id="g-hint"></button><span class="sp"></span><button class="btn primary" type="button" id="g-check">Check</button></div>');
+  $('#m-title').textContent = ch.prompt; $('#g-note').textContent = ch.note || ''; if (!ch.note) $('#g-note').hidden = true;
+  const fb = $('#g-fb'); const setFb = (t, cls) => { fb.className = 'fb ' + (cls || ''); fb.textContent = t; };
+  const hb = $('#g-hint');
+  function updHint() { hb.textContent = hints >= 3 ? 'No more hints' : (hints === 2 ? 'Show me the answer' : 'Hint ' + (hints + 1) + ' of 3'); hb.disabled = hints >= 3 || done; }
+  updHint();
+  const ctx = { changed() { } };
+  ch.mount($('#g-body'), ctx);
+  hb.onclick = () => { if (hints >= 3 || done) return; hints++; if (hints === 3) revealed = true; setFb(ch.hint(hints), 'hint'); updHint(); };
+  function doCheck() {
+    if (done) return; const res = ch.check();
+    if (res.empty) { setFb(res.msg, 'bad'); return; }
+    if (!res.ok) { wrong++; setFb(res.msg, 'bad'); return; }
+    done = true; if (res.penalty) wrong += res.penalty;
+    const pen = Math.min(hints, 2) + wrong; const stars = revealed ? 1 : (pen === 0 ? 3 : pen <= 2 ? 2 : 1);
+    if (ch.cleanup) ch.cleanup();
+    const best = Math.max(stars, info.prevStars || 0);
+    info.onSolved && info.onSolved(stars);
+    sheet.innerHTML = '<div class="mh"><div class="where">' + esc(info.where) + '</div><button class="x" type="button" id="g-x" aria-label="Close">\u00D7</button></div><div class="win"><h2 id="m-title" class="q">The gate opens</h2><div class="big" aria-label="' + stars + ' of 3 stars">' + starsText(stars) + '</div><p>' + (stars === 3 ? 'Clean solve, no hints and no misses.' : stars === 2 ? 'Good work. A hint or a miss cost you a star.' : 'You got through. Try again later for more stars.') + (info.prevStars && info.prevStars > stars ? ' Your best here is still ' + info.prevStars + '.' : '') + '</p><p>' + ch.explain + '</p><div class="actions" style="justify-content:center"><button class="btn primary" type="button" id="g-go">' + esc(info.continueLabel || 'Keep walking') + '</button></div></div>';
+    $('#g-x').onclick = closeModal; $('#g-go').onclick = closeModal; $('#g-go').focus();
+  }
+  $('#g-check').onclick = doCheck; $('#g-x').onclick = closeModal;
+  activeCh.doCheck = doCheck;
+  const ttl = $('#m-title'); ttl.tabIndex = -1; setTimeout(() => { if (!modal.hidden) { try { ttl.focus({ preventScroll: true }); } catch (e) { } } }, 30);
+}
+
+function showCard(html, btnLabel, then, opts) {
+  modalMode = 'card'; onModalClose = then || null;
+  openModal(html + '<div class="actions" style="margin-top:16px"><span class="sp"></span><button class="btn primary" type="button" id="c-go">' + esc(btnLabel || 'Continue') + '</button></div>');
+  $('#c-go').onclick = closeModal; $('#c-go').focus();
+}
+
+document.addEventListener('keydown', e => {
+  if (modal.hidden) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (e.key === 'Tab') { const f = $$('button:not(:disabled),input,[tabindex="0"],[data-i]', sheet).filter(x => x.offsetParent !== null); if (!f.length) return; const first = f[0], last = f[f.length - 1]; if (e.shiftKey && (document.activeElement === first || document.activeElement === sheet)) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); } return; }
+  if (modalMode !== 'gate' || !activeCh) return;
+  const onOpt = e.target.classList && e.target.classList.contains('opt') && !activeCh.enterToggles;
+  if (e.key === 'Enter' && (tag !== 'button' || onOpt) && !(e.target.closest && e.target.closest('[data-i]'))) { e.preventDefault(); activeCh.doCheck && activeCh.doCheck(); return; }
+  if (/^[1-9]$/.test(e.key) && tag !== 'input' && activeCh.key) { e.preventDefault(); activeCh.key(+e.key - 1); }
+}, true);
+modal.addEventListener('mousedown', e => { if (e.target === modal) closeModal(); });
+
+
+/* ============ worlds ============ */
+const ri = n => Math.floor(Math.random() * n);
+const rpick = a => a[ri(a.length)];
+const rsample = (a, n) => shuffle(a).slice(0, n);
+const rseed = () => Math.random().toString(36).slice(2);
+const T1 = DATA.filter(c => c.t === 1), T2 = DATA.filter(c => c.t === 2), T3 = DATA.filter(c => c.t === 3 && c.e.length >= 5 && c.s.length >= 6);
+const KNOWN = DATA.filter(c => c.t === 1 || c.t === 2);
+const seasonal = s => DATA.filter(c => c.cl && c.se === s && c.t > 0);
+const seasonalK = s => { const k = seasonal(s).filter(c => c.t <= 2); return k.length >= 3 ? k : seasonal(s); };
+const CIRC = ['UMa', 'UMi', 'Cas', 'Cep', 'Dra', 'Cam'];
+function picker() { const u = new Set(); return (list) => { let l = list.filter(x => !u.has(x.i)); if (!l.length) l = list; const c = rpick(l); u.add(c.i); return c; }; }
+function drawable(lo, hi) { return DATA.filter(c => c.e.length >= lo && c.e.length <= hi && c.s.length <= 16); }
+function prefKnown(list) { const k = list.filter(c => c.t > 0 && c.t <= 2); return k.length ? k : list; }
+function hopPair(d, used) {
+  for (let n = 0; n < 400; n++) { const a = rpick(KNOWN), b = rpick(KNOWN); if (a.i === b.i || used.has(a.i + b.i)) continue; const p = bfsPath(a.i, b.i); if (p && p.length - 1 === d) { used.add(a.i + b.i); return [a.i, b.i]; } }
+  return d === 2 ? ['Cas', 'Cyg'] : ['Ori', 'Leo'];
+}
+function twoAway(c) { const near = new Set(c.nb.concat([c.i])); const out = new Set(); c.nb.forEach(n => BY[n].nb.forEach(m => { if (!near.has(m)) out.add(m); })); return [...out]; }
+const WORLDS = [
+  {
+    id: 'shore', name: 'Shape Shore', color: '#62d6c6', hex: 0x62d6c6, tag: 'Name constellations from their shapes',
+    blurb: 'A moonlit beach with six gates. Recognize each constellation by the pattern its stars make.',
+    story: 'Professor Nova\u2019s star charts washed out to sea, and the gates along the shore only open for someone who can read the sky. Look at each pattern, name it, and the stars will light up overhead again.',
+    look: { sky: 0x08183a, fog: 0x0a2048, ground: 0x15324e, path: 0xd8c8a2, deco: 'shore', amp: 0.8 },
+    make() { const P = picker(); return [{ k: 'shape-name', c: P(T1).i, pool: 1 }, { k: 'name-shape', c: P(T1).i, pool: 1 }, { k: 'shape-name', c: P(T1).i, pool: 1, dots: true }, { k: 'shape-name', c: P(T2).i, pool: 2 }, { k: 'name-shape', c: P(T2).i, pool: 2 }, { k: 'shape-name', c: P(T3).i, pool: 3 }].map(s => Object.assign(s, { seed: rseed() })); }
+  },
+  {
+    id: 'dunes', name: 'Draw Dunes', color: '#f0c55a', hex: 0xf0c55a, tag: 'Draw constellations star by star',
+    blurb: 'Golden dunes where the stars have lost their lines. Connect the dots to redraw each figure, then do it from memory.',
+    story: 'The sky\u2019s connect-the-dots lines have blown away in the desert wind. Redraw each figure by joining its stars. The last two gates are memory gates: the figure flashes and vanishes, so look closely.',
+    look: { sky: 0x1a1030, fog: 0x2a1838, ground: 0x4a3a2a, path: 0xe8cf92, deco: 'dunes', amp: 1.3 },
+    make() { const P = picker(); return [{ k: 'draw', c: P(drawable(2, 5)).i }, { k: 'draw', c: P(drawable(4, 8)).i }, { k: 'draw', c: P(drawable(6, 10)).i }, { k: 'draw', c: P(drawable(8, 12)).i }, { k: 'draw', c: P(prefKnown(drawable(5, 9))).i, flash: true }, { k: 'draw', c: P(prefKnown(drawable(7, 13))).i, flash: true }].map(s => Object.assign(s, { seed: rseed() })); }
+  },
+  {
+    id: 'summit', name: 'Season Summit', color: '#8fb4ff', hex: 0x8fb4ff, tag: 'Match constellations to their seasons',
+    blurb: 'A snowy climb up the Sky Wheel. Know which constellations rule the winter, spring, summer, and autumn evenings.',
+    story: 'The Sky Wheel at the top of the mountain is jammed. Each season\u2019s constellations have to go back where they belong before it can turn again. Remember: seasons here mean the evening sky, around 9 pm, seen from the northern US.',
+    look: { sky: 0x0a1230, fog: 0x16224a, ground: 0x2a3a62, path: 0xdfe7ff, deco: 'summit', amp: 2.2 },
+    make() {
+      const P = picker(); const S = shuffle(SEASONS); const all = DATA.filter(c => c.cl && SEASONS.includes(c.se) && c.t > 0 && c.t <= 2);
+      const g0 = P(seasonalK(S[0])), g1 = Math.random() < .25 ? P(DATA.filter(c => c.t > 0 && (c.se === 'southern' || CIRC.includes(c.i)))) : P(seasonalK(S[1]));
+      const S2 = rpick(SEASONS), S3 = rpick(SEASONS);
+      const g2 = P(seasonalK(S2)), g3 = P(all.filter(c => c.se !== S3));
+      const counts = shuffle([2, 2, 1, 1]); const ids = []; shuffle(SEASONS).forEach((s, n) => { for (let k = 0; k < counts[n]; k++) ids.push(P(seasonalK(s)).i); });
+      const yes = rsample(CIRC, 3), no = rsample(all, 3).map(c => c.i);
+      return [{ k: 'season-one', c: g0.i }, { k: 'season-one', c: g1.i }, { k: 'season-pick', season: S2, c: g2.i }, { k: 'season-odd', season: S3, c: g3.i }, { k: 'season-sort', ids: shuffle(ids) }, { k: 'circum', yes, no }].map(s => Object.assign(s, { seed: rseed() }));
+    }
+  },
+  {
+    id: 'nebula', name: 'Neighbor Nebula', color: '#f08aa8', hex: 0xf08aa8, tag: 'Know who borders whom',
+    blurb: 'A violet cloud over the border map of the sky. Learn which constellations share a boundary line.',
+    story: 'The borders between constellations have faded from the great map. Every gate here asks who lives next door to whom. Two constellations are neighbors if they share a border line, not just a corner.',
+    look: { sky: 0x160a30, fog: 0x2a1048, ground: 0x2a1a50, path: 0xe9c8ff, deco: 'nebula', amp: 1.1 },
+    make() {
+      const P = picker(); const used = new Set(); const K = list => list.filter(c => c.t > 0 && c.t <= 2);
+      const c0 = P(K(DATA).filter(c => c.nb.length >= 3)), a0 = rpick(c0.nb);
+      const c1 = P(K(DATA).filter(c => c.nb.length >= 4 && twoAway(c).length)), odd = rpick(twoAway(c1));
+      const c2 = P(DATA.filter(c => c.nb.length >= 3 && c.nb.length <= 5));
+      const h1 = hopPair(2, used), h2 = hopPair(3, used);
+      const c5 = P(K(DATA).filter(c => c.nb.length >= 6));
+      return [{ k: 'nb-pick', c: c0.i, a: a0 }, { k: 'nb-odd', c: c1.i, odd }, { k: 'nb-multi', c: c2.i }, { k: 'hop', from: h1[0], to: h1[1] }, { k: 'hop', from: h2[0], to: h2[1] }, { k: 'nb-type', c: c5.i, n: 4 }].map(s => Object.assign(s, { seed: rseed() }));
+    }
+  }
+];
+/* each world keeps its current "run" of six gates; resume it, or start a new one */
+function newRun(w) {
+  if (worldDone(w)) { store.best[w.id] = Math.max(store.best[w.id] || 0, worldStars(w)); }
+  for (let i = 0; i < 6; i++) delete store.stars[w.id + '-' + i];
+  w.gates = w.make(); store.runs[w.id] = w.gates; w._doneShown = false; save();
+}
+WORLDS.forEach(w => {
+  if (store.runs[w.id]) { w.gates = store.runs[w.id]; return; }
+  w.gates = new Array(6).fill(null);
+  const st = [0, 1, 2, 3, 4, 5].map(i => store.stars[w.id + '-' + i] || 0);   /* progress saved by the earlier fixed-gate version */
+  if (st.every(Boolean)) { store.cleared[w.id] = 1; store.best[w.id] = st.reduce((x, y) => x + y, 0); }
+  if (st.some(Boolean)) { st.forEach((_, i) => delete store.stars[w.id + '-' + i]); }
+});
+save();
+const practiceMem = {};
+function gateKey(w, i) { return w.id + '-' + i; }
+function getStars(w, i) { return w.practice ? (practiceMem[gateKey(w, i)] || 0) : (store.stars[gateKey(w, i)] || 0); }
+function setStars(w, i, n) { const k = gateKey(w, i); if (w.practice) practiceMem[k] = Math.max(practiceMem[k] || 0, n); else { store.stars[k] = Math.max(store.stars[k] || 0, n); save(); } }
+function nextIdx(w) { for (let i = 0; i < w.gates.length; i++) if (!getStars(w, i)) return i; return w.gates.length; }
+function worldStars(w) { return w.gates.reduce((s, _, i) => s + getStars(w, i), 0); }
+function worldDone(w) { return nextIdx(w) >= w.gates.length; }
+function unlocked(wi) { return store.settings.teacher || wi === 0 || !!store.cleared[WORLDS[wi - 1].id]; }
+
+/* ============ menu ============ */
+const OWL = '<svg viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="52" r="38" fill="#7a5a2e"/><path d="M18 24l10 14M78 24L68 38" stroke="#7a5a2e" stroke-width="8" stroke-linecap="round"/><circle cx="34" cy="46" r="15" fill="#f4eed9"/><circle cx="62" cy="46" r="15" fill="#f4eed9"/><circle cx="34" cy="46" r="8" fill="#101839"/><circle cx="62" cy="46" r="8" fill="#101839"/><circle cx="36.5" cy="43.5" r="2.6" fill="#fff"/><circle cx="64.5" cy="43.5" r="2.6" fill="#fff"/><path d="M48 52l-6 9h12z" fill="#f0c55a"/><path d="M30 76q18 10 36 0" stroke="#f0c55a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M48 6l2.2 5.4 5.8.5-4.4 3.8 1.4 5.7L48 18.5 43 21.4l1.4-5.7L40 11.9l5.8-.5z" fill="#f0c55a"/></svg>';
+function heroArt() {
+  const c = BY.Ori; let h = '<svg viewBox="-8 -8 116 116" role="presentation">';
+  c.e.forEach(([a, b], n) => { h += '<line class="hl" pathLength="1" style="animation-delay:' + (0.2 + n * 0.07).toFixed(2) + 's" x1="' + c.s[a][0] + '" y1="' + c.s[a][1] + '" x2="' + c.s[b][0] + '" y2="' + c.s[b][1] + '"/>'; });
+  c.s.forEach((p, n) => { h += '<circle class="hs" style="animation-delay:' + (0.1 + n * 0.05).toFixed(2) + 's" cx="' + p[0] + '" cy="' + p[1] + '" r="' + (n % 5 === 0 ? 2.2 : 1.4) + '"/>'; });
+  $('#heroart').innerHTML = h + '</svg><span class="cap">Orion, the Hunter</span>';
+}
+function renderMenu() {
+  const list = $('#worldlist'); list.innerHTML = '';
+  WORLDS.forEach((w, wi) => {
+    const open = unlocked(wi), st = worldStars(w), done = worldDone(w), ni = nextIdx(w), cleared = !!store.cleared[w.id], best = Math.max(store.best[w.id] || 0, done ? st : 0);
+    const li = document.createElement('li'); li.style.setProperty('--wc', w.color); if (!open) li.className = 'locked';
+    const prev = WORLDS[wi - 1];
+    const status = !open ? 'Locked. Open all six gates in ' + esc(prev.name) + ' first.' : done ? 'All six gates open' : ni ? ni + ' of 6 gates open this run' : (cleared ? 'Ready for a new run' : 'Not started');
+    li.innerHTML = '<div class="node" aria-hidden="true">' + (wi + 1) + '</div><div><div class="world-t">' + esc(w.name) + '</div><p class="world-s">' + esc(w.blurb) + '</p><div class="world-m"><span class="stars" aria-label="' + st + ' of 18 stars this run">\u2605 ' + st + ' / 18</span>' + (best ? ' &nbsp; <span class="stars" aria-label="Best run ' + best + ' of 18 stars">Best \u2605 ' + best + '</span>' : '') + ' &nbsp; ' + status + '</div></div><div class="act"><button class="btn ' + (open && !done ? 'primary' : '') + '" type="button" data-go ' + (open ? '' : 'disabled') + '>' + (open ? (done ? 'Replay with new questions' : ni ? 'Continue' : (cleared ? 'Play again' : 'Enter')) : 'Locked') + '</button>' + (open && ni > 0 && !done ? ' <button class="btn small" type="button" data-new>New questions</button>' : '') + '</div>';
+    $('[data-go]', li).onclick = () => enterWorld(w);
+    const nb = $('[data-new]', li); if (nb) nb.onclick = () => enterWorld(w, true);
+    list.append(li);
+  });
+  const nx = WORLDS.findIndex((w, wi) => unlocked(wi) && !worldDone(w));
+  $('#m-start').textContent = nx < 0 ? 'Replay World 1' : (nx === 0 && !nextIdx(WORLDS[0]) ? 'Start with World 1' : 'Continue in World ' + (nx + 1));
+  $('#m-start').onclick = () => enterWorld(WORLDS[nx < 0 ? 0 : nx]);
+  $('#s-simple').checked = !!store.settings.simple; $('#s-counter').checked = store.settings.counter !== false; $('#s-teacher').checked = !!store.settings.teacher;
+}
+$('#s-simple').onchange = e => { store.settings.simple = e.target.checked; save(); };
+$('#s-counter').onchange = e => { store.settings.counter = e.target.checked; save(); };
+$('#s-teacher').onchange = e => { store.settings.teacher = e.target.checked; save(); renderMenu(); };
+$('#s-reset').onclick = () => { if (confirm('Erase all stars and progress saved on this device?')) { store.stars = {}; store.seen = {}; store.runs = {}; store.cleared = {}; store.best = {}; WORLDS.forEach(w => w.gates = new Array(6).fill(null)); save(); renderMenu(); } };
+
+/* ---- practice builder ---- */
+const PRESETS = {
+  'The zodiac': ['Ari', 'Tau', 'Gem', 'Cnc', 'Leo', 'Vir', 'Lib', 'Sco', 'Sgr', 'Cap', 'Aqr', 'Psc'],
+  'Winter': ['Ori', 'CMa', 'Gem', 'Tau', 'Aur', 'Lep'],
+  'Spring': ['Leo', 'Vir', 'Crv', 'Crt', 'Hya', 'Com'],
+  'Summer': ['Cyg', 'Lyr', 'Aql', 'Her', 'Sco', 'Sgr'],
+  'Autumn': ['Peg', 'And', 'Aqr', 'Psc', 'Cet', 'Ari'],
+  'Circumpolar': ['UMa', 'UMi', 'Cas', 'Cep', 'Dra', 'Cam']
+};
+(function () { const box = $('#presets'); Object.keys(PRESETS).forEach(k => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = k; b.onclick = () => { $('#plist').value = PRESETS[k].map(i => BY[i].n).join('\n'); $('#perr').textContent = ''; }; box.append(b); }); })();
+$('#pfill').onclick = () => { $('#plist').value = 'Orion\nCassiopeia\nLeo\nCygnus\nScorpius'; $('#perr').textContent = ''; };
+$('#pplay').onclick = () => {
+  const lines = $('#plist').value.split(/\n|,/).map(s => s.trim()).filter(Boolean);
+  const kinds = $$('#pkinds input:checked').map(i => i.value);
+  const err = $('#perr');
+  if (!lines.length) { err.textContent = 'Type at least one constellation first, or use Fill in examples.'; return; }
+  if (!kinds.length) { err.textContent = 'Check at least one kind of gate.'; return; }
+  const ids = [], bad = [];
+  lines.forEach(l => { const id = findC(l); if (!id) bad.push(l); else if (!ids.includes(id)) ids.push(id); });
+  if (bad.length) { err.textContent = 'Not recognized: ' + bad.slice(0, 4).join(', ') + (bad.length > 4 ? '\u2026' : '') + '. Use an IAU name like Orion or an abbreviation like UMa.'; return; }
+  const gates = []; const skipped = [];
+  kinds.forEach(kd => ids.forEach(id => {
+    const c = BY[id];
+    if (kd === 'shape') { if (c.t > 0) gates.push({ k: 'shape-name', c: id, pool: 3, seed: rseed() }); else skipped.push(c.n); }
+    else if (kd === 'pick') { if (c.t > 0) gates.push({ k: 'name-shape', c: id, pool: 3, seed: rseed() }); else skipped.push(c.n); }
+    else if (kd === 'draw') { if (c.e.length >= 2 && c.e.length <= 16) gates.push({ k: 'draw', c: id, seed: rseed() }); else skipped.push(c.n); }
+    else if (kd === 'season') gates.push({ k: 'season-one', c: id, seed: rseed() });
+    else if (kd === 'nb') gates.push({ k: 'nb-pick', c: id, seed: rseed() });
+  }));
+  if (!gates.length) { err.textContent = 'None of those constellations has a drawable figure for the gate kinds you picked. Try seasons or neighbors.'; return; }
+  err.textContent = '';
+  const world = { id: 'practice', practice: true, name: 'Practice Path', color: '#f0c55a', hex: 0xf0c55a, blurb: '', story: 'Your own path: ' + gates.length + ' gate' + (gates.length === 1 ? '' : 's') + ' built from your list.' + (skipped.length ? ' Skipped some shape and drawing gates for constellations with too few lines to draw (' + [...new Set(skipped)].slice(0, 5).join(', ') + ').' : ''), look: { sky: 0x101a3c, fog: 0x1a2650, ground: 0x1e2c58, path: 0xf0e0b0, deco: 'nebula', amp: 1 }, gates: gates.slice(0, 18) };
+  Object.keys(practiceMem).forEach(k => delete practiceMem[k]);
+  enterWorld(world);
+};
+
+/* ============ atlas ============ */
+const atlas = $('#atlas');
+function renderAtlas() {
+  const q = norm($('#a-q').value), s = $('#a-s').value;
+  const rows = DATA.filter(c => (!s || c.se === s || (c.sa === s)) && (!q || norm(c.n + c.i + c.m).includes(q)));
+  $('#a-count').textContent = rows.length + ' of 88 constellations. Neighbors share a border line on the IAU map. Seasons mean the evening sky from the mid-northern US.';
+  $('#a-grid').innerHTML = rows.map(c => '<article class="acard">' + skyBox(figureSVG(c, { label: c.n + ' star pattern' })) + '<h3>' + esc(c.n) + ' <span class="ab">' + esc(c.i) + '</span></h3><p>' + esc(c.m) + '</p><p><span class="pill-se se-' + c.se + '">' + esc(seasonText(c)) + '</span></p><p>' + (c.se === 'circumpolar' || c.se === 'southern' ? '' : 'Best around ' + c.bm + '. ') + 'RA ' + raStr(c) + '</p><details><summary>' + c.nb.length + ' neighbors</summary>' + c.nb.map(i => esc(BY[i].n)).join(', ') + '</details></article>').join('') || '<p>No constellations match.</p>';
+}
+let atlasOpener = null;
+function openAtlas() { atlasOpener = document.activeElement; atlas.hidden = false; renderAtlas(); atlas.scrollTop = 0; $('#a-close').focus(); }
+function closeAtlas() { atlas.hidden = true; if (atlasOpener && atlasOpener.focus) try { atlasOpener.focus({ preventScroll: true }); } catch (e) { } }
+$('#a-q').oninput = renderAtlas; $('#a-s').onchange = renderAtlas; $('#a-close').onclick = closeAtlas;
+$('#m-atlas').onclick = openAtlas; $('#h-atlas').onclick = openAtlas;
+document.addEventListener('keydown', e => { if (!atlas.hidden && e.key === 'Escape') { e.preventDefault(); closeAtlas(); } });
+
+/* ============ game flow ============ */
+let current = null, mode = 'menu';   // 'menu' | '3d' | 'trail'
+function showScreen(s) {
+  $('#menu').hidden = s !== 'menu'; $('#hud').hidden = s === 'menu';
+  $('#scene').hidden = s !== '3d'; $('#trail').hidden = s !== 'trail';
+  $('#joy').hidden = !(s === '3d' && isTouch()); $('#walkhint').hidden = s !== '3d';
+  if (s === 'menu') { $('#prompt').hidden = true; }
+  mode = s;
+}
+const isTouch = () => (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
+
+function updateHud() {
+  if (!current) return; const w = current; const ni = nextIdx(w);
+  $('#h-world').textContent = w.name;
+  $('#h-gate').textContent = ni >= w.gates.length ? 'All gates open' : 'Gate ' + (ni + 1) + ' of ' + w.gates.length;
+  $('#h-stars').textContent = '\u2605 ' + worldStars(w) + ' / ' + (w.gates.length * 3);
+}
+function enterWorld(w, fresh) {
+  if (!w.practice) { if (fresh || !store.runs[w.id] || worldDone(w)) newRun(w); else w.gates = store.runs[w.id]; }
+  current = w;
+  let use3D = !store.settings.simple && typeof THREE !== 'undefined';
+  if (use3D) { use3D = init3D(); }
+  showScreen(use3D ? '3d' : 'trail');
+  $('#walkhint').textContent = isTouch() ? 'Drag the joystick to walk. Walk up to a glowing gate.' : 'Walk with W A S D or the arrow keys. Walk up to a glowing gate.';
+  if (use3D) { build3D(w); start3D(); } else { stop3D(); renderTrail(); }
+  updateHud();
+  if (!w.practice && !store.seen[w.id]) { store.seen[w.id] = 1; save(); showCard('<div class="story">' + OWL + '<div><h2 id="m-title" class="q">' + esc(w.name) + '</h2><p>' + esc(w.story) + '</p></div></div>', 'Let\u2019s go', null); }
+  else if (w.practice) showCard('<div class="story">' + OWL + '<div><h2 id="m-title" class="q">Practice path</h2><p>' + esc(w.story) + ' Progress here is not saved.</p></div></div>', 'Let\u2019s go', null);
+}
+function leaveWorld() { stop3D(); current = null; showScreen('menu'); renderMenu(); }
+$('#h-menu').onclick = leaveWorld;
+
+function openGate(i) {
+  const w = current; if (!w || i > nextIdx(w)) return;
+  const spec = w.gates[i];
+  runGate({
+    where: w.name + ' \u00B7 Gate ' + (i + 1) + ' of ' + w.gates.length, spec, seed: w.id + '|' + i + '|' + (spec.seed || spec.c || ''),
+    prevStars: getStars(w, i), continueLabel: i === w.gates.length - 1 ? 'See the sky' : 'Keep walking',
+    onSolved(stars) { setStars(w, i, stars); if (!w.practice && worldDone(w)) { store.cleared[w.id] = 1; store.best[w.id] = Math.max(store.best[w.id] || 0, worldStars(w)); save(); } gateSolved(i); updateHud(); },
+    onClose() {
+      if (mode === 'trail') renderTrail();
+      if (worldDone(w) && !w._doneShown) {
+        w._doneShown = true; const wi = WORLDS.indexOf(w); const nextW = wi >= 0 && wi < WORLDS.length - 1 ? WORLDS[wi + 1] : null;
+        const finale = wi === WORLDS.length - 1; const total = WORLDS.reduce((s, x) => s + worldStars(x), 0);
+        showCard('<div class="story">' + OWL + '<div><h2 id="m-title" class="q">' + (w.practice ? 'Practice path complete' : finale ? 'The sky is restored' : w.name + ' cleared') + '</h2><p>' + (w.practice ? 'Every gate is open. Head back to the menu to build another path.' : finale ? 'All four worlds are open and the constellations shine again. You earned ' + total + ' of 72 stars. Replay any gate to go for three stars, or open the Star Atlas to study all 88.' : 'All six gates are open and you earned ' + worldStars(w) + ' of 18 stars. ' + (nextW ? esc(nextW.name) + ' is now unlocked.' : '')) + '</p></div></div>', nextW && !w.practice ? 'Back to the menu' : 'Back to the menu', () => { if (w.practice || true) leaveWorld(); });
+      }
+    }
+  });
+}
+
+/* ============ simple trail ============ */
+function renderTrail() {
+  const w = current, ni = nextIdx(w); const box = $('#trail'); box.style.setProperty('--wc', w.color);
+  let h = '<ol aria-label="Gates in ' + esc(w.name) + '">';
+  w.gates.forEach((g, i) => {
+    const st = getStars(w, i), locked = i > ni;
+    h += '<li><button class="tgate' + (st ? ' solved' : '') + '" type="button" data-i="' + i + '" ' + (locked ? 'disabled' : '') + ' style="--wc:' + w.color + '"><span class="dot" aria-hidden="true">' + (i + 1) + '</span><span>Gate ' + (i + 1) + '<small>' + (locked ? 'Solve the gate before this one' : st ? 'Open. Tap to replay' : 'Closed. Tap to solve') + '</small></span>' + (st ? '<span class="st" aria-label="' + st + ' of 3 stars">' + starsText(st) + '</span>' : '') + '</button></li>';
+  });
+  box.innerHTML = h + '</ol>';
+  $$('.tgate', box).forEach(b => b.onclick = () => openGate(+b.dataset.i));
+  updateHud();
+}
+function gateSolved(i) { if (mode === '3d') gate3DOpen(i); }
+
+/* ============ 3D world ============ */
+let renderer = null, scene, camera, clock, raf = null, wg = null, gates3 = [], sky3 = null, player3 = null, lantern = null;
+const P = { x: 0, z: 4, y: 0, rot: 0, bob: 0 }; const keys = {}; const joy = { x: 0, y: 0 };
+const GATE_GAP = 24, GATE_W = 5.2;
+const pathX = z => 7 * Math.sin(z / 26);
+const gateZ = i => -GATE_GAP * (i + 1);
+const smooth = (x, a, b) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+let AMP = 1;
+function terrainH(x, z) { const k = smooth(Math.abs(x - pathX(z)), 6, 18); return (Math.sin(x * .11 + z * .05) * 2.2 + Math.sin(x * .047 - z * .09) * 3.1 + Math.sin(x * .23 + z * .19) * .7) * k * AMP; }
+
+function init3D() {
+  if (renderer) return true;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: $('#scene'), antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(62, 1, 0.1, 500); clock = new THREE.Clock();
+    scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x20143a, 0.95));
+    const moon = new THREE.DirectionalLight(0xc8d6ff, 0.7); moon.position.set(-40, 70, -60); scene.add(moon);
+    resize3D(); return true;
+  } catch (e) { renderer = null; return false; }
+}
+function resize3D() { if (!renderer) return; const w = window.innerWidth, h = window.innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+window.addEventListener('resize', resize3D);
+
+function labelTex(text, o) {
+  o = o || {}; const c = document.createElement('canvas'); c.width = o.w || 256; c.height = o.h || 128; const g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height); g.textAlign = 'center'; g.textBaseline = 'middle'; let fs = o.size || 64; g.font = '700 ' + fs + 'px "Atkinson Hyperlegible", system-ui, sans-serif';
+  while (g.measureText(text).width > c.width - 24 && fs > 14) { fs -= 3; g.font = '700 ' + fs + 'px "Atkinson Hyperlegible", system-ui, sans-serif'; }
+  g.lineWidth = 8; g.strokeStyle = 'rgba(5,8,24,.85)'; g.strokeText(text, c.width / 2, c.height / 2); g.fillStyle = o.color || '#fff6d6'; g.fillText(text, c.width / 2, c.height / 2);
+  const t = new THREE.CanvasTexture(c); return t;
+}
+function makeSprite(text, scale, o) { const m = new THREE.SpriteMaterial({ map: labelTex(text, o), transparent: true, depthWrite: false, fog: false }); const s = new THREE.Sprite(m); s.scale.set(scale * 2, scale, 1); s.userData.o = o; return s; }
+function setSpriteText(s, text) { s.material.map.dispose(); s.material.map = labelTex(text, s.userData.o); s.material.needsUpdate = true; }
+
+function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } }); }
+function figureLines(c, w) {
+  const grp = new THREE.Group(); const k = w / 100;
+  const lm = new THREE.MeshBasicMaterial({ color: 0xf0c55a, transparent: true, opacity: 0, fog: false });
+  const sm = new THREE.MeshBasicMaterial({ color: 0xfff6d6, transparent: true, opacity: 0, fog: false });
+  const hm = new THREE.MeshBasicMaterial({ color: 0xf0c55a, transparent: true, opacity: 0, fog: false, depthWrite: false }); hm.userData.max = .28;
+  const P2 = i => [(c.s[i][0] - 50) * k, (50 - c.s[i][1]) * k];
+  c.e.forEach(([a, b2]) => {
+    const A = P2(a), B = P2(b2), dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy); if (L < 0.01) return;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(w * .0065, w * .0065, L, 5), lm);
+    m.position.set((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, 0); m.rotation.z = Math.atan2(dy, dx) - Math.PI / 2; grp.add(m);
+  });
+  c.s.forEach((_, i) => {
+    const p = P2(i);
+    const s = new THREE.Mesh(new THREE.SphereGeometry(w * .02, 8, 6), sm); s.position.set(p[0], p[1], 0.05); grp.add(s);
+    const h = new THREE.Mesh(new THREE.CircleGeometry(w * .045, 14), hm); h.position.set(p[0], p[1], -0.05); h.material.opacity = 0; grp.add(h);
+  });
+  return grp;
+}
+function decoMesh(type, r) {
+  const M = c => new THREE.MeshStandardMaterial({ color: c, flatShading: true });
+  const g = new THREE.Group();
+  if (type === 'shore') {
+    const k = r(); if (k < .5) { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(1 + r() * 1.8), M(0x40566e)); m.scale.y = .7; g.add(m); }
+    else if (k < .8) { const m = new THREE.Mesh(new THREE.ConeGeometry(.5 + r() * .4, 1.6, 7), M(0xe8c9b0)); m.position.y = .8; m.rotation.z = (r() - .5) * .8; g.add(m); }
+    else { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.45), new THREE.MeshBasicMaterial({ color: 0x62d6c6 })); m.position.y = .7; g.add(m); }
+  } else if (type === 'dunes') {
+    const k = r(); if (k < .35) { const m = new THREE.Mesh(new THREE.CylinderGeometry(.4, .5, 3 + r() * 2, 8), M(0x4c8a5a)); m.position.y = 1.8; g.add(m); const a = new THREE.Mesh(new THREE.CylinderGeometry(.25, .3, 1.4, 7), M(0x4c8a5a)); a.position.set(.7, 2.3, 0); g.add(a); }
+    else if (k < .75) { const m = new THREE.Mesh(new THREE.SphereGeometry(3 + r() * 5, 10, 6), M(0x6a5236)); m.scale.y = .28; g.add(m); }
+    else { const m = new THREE.Mesh(new THREE.OctahedronGeometry(.7), new THREE.MeshBasicMaterial({ color: 0xf0c55a })); m.position.y = 1; g.add(m); }
+  } else if (type === 'summit') {
+    const k = r(); if (k < .6) { for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(new THREE.ConeGeometry(2.2 - i * .55, 2.6, 8), M(i === 2 ? 0xe8f0ff : 0x1f4a48)); m.position.y = 1.8 + i * 1.5; g.add(m); } const t = new THREE.Mesh(new THREE.CylinderGeometry(.3, .35, 1.2, 6), M(0x4a3426)); t.position.y = .5; g.add(t); }
+    else { const m = new THREE.Mesh(new THREE.ConeGeometry(5 + r() * 6, 12 + r() * 14, 6), M(0x56688f)); m.position.y = 6; g.add(m); const cap = new THREE.Mesh(new THREE.ConeGeometry(2.6, 4, 6), M(0xeef3ff)); cap.position.y = 12; g.add(cap); }
+  } else {
+    const k = r(); const col = [0xf08aa8, 0x8f7bff, 0x62d6c6][Math.floor(r() * 3)];
+    if (k < .6) { const m = new THREE.Mesh(new THREE.OctahedronGeometry(.9 + r() * 1.4), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: .45, flatShading: true })); m.position.y = 2 + r() * 3; m.userData.bob = r() * 6; g.add(m); g.userData.float = 1; }
+    else { const m = new THREE.Mesh(new THREE.SphereGeometry(.6 + r(), 10, 8), new THREE.MeshBasicMaterial({ color: col })); m.position.y = 1 + r() * 2; g.add(m); }
+  }
+  return g;
+}
+
+function makeGate3D(w, i) {
+  const g = new THREE.Group(); const stone = 0x4a5588;
+  const pm1 = new THREE.MeshStandardMaterial({ color: stone, flatShading: true }), pm2 = pm1.clone();
+  const p1 = new THREE.Mesh(new THREE.BoxGeometry(1.7, 10, 1.7), pm1); p1.position.set(-GATE_W, 5, 0);
+  const p2 = new THREE.Mesh(new THREE.BoxGeometry(1.7, 10, 1.7), pm2); p2.position.set(GATE_W, 5, 0);
+  const am = new THREE.MeshStandardMaterial({ color: stone, flatShading: true });
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(GATE_W, .6, 8, 28, Math.PI), am); arch.position.y = 10;
+  const dm = new THREE.MeshBasicMaterial({ color: w.hex, transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false });
+  const door = new THREE.Group(); const d1 = new THREE.Mesh(new THREE.PlaneGeometry(GATE_W * 2, 10), dm); d1.position.y = 5; const d2 = new THREE.Mesh(new THREE.CircleGeometry(GATE_W, 28, 0, Math.PI), dm); d2.position.y = 10; door.add(d1, d2);
+  const ring = new THREE.Group(); const rm = new THREE.MeshBasicMaterial({ color: 0xf0c55a });
+  [[0, 0], [Math.PI / 2, 0], [0, Math.PI / 2]].forEach(a => { const t = new THREE.Mesh(new THREE.TorusGeometry(2.3, .09, 6, 40), rm); t.rotation.set(a[0], a[1], 0); ring.add(t); }); ring.position.y = 8;
+  const num = makeSprite(String(i + 1), 3.2, { size: 80, w: 128, h: 128 }); num.scale.set(3.2, 3.2, 1); num.position.set(0, 8, .1);
+  const lab = makeSprite('Gate ' + (i + 1), 2.4, { size: 56 }); lab.position.set(0, 17.5, 0);
+  g.add(p1, p2, arch, door, ring, num, lab);
+  const z = gateZ(i); g.position.set(pathX(z), 0, z);
+  return { group: g, door, ring, num, lab, pm: [pm1, pm2, am], t: 0, open: false, fig: null, figT: 0, i };
+}
+function addSkyFigures(G, w) {
+  if (G.fig) return; const ids = litIds(w.gates[G.i]).slice(0, 6); const grp = new THREE.Group(); const sz = ids.length > 3 ? 14 : 18; const gap = sz + 4;
+  ids.forEach((id, n) => { const f = figureLines(BY[id], sz); f.position.x = (n - (ids.length - 1) / 2) * gap; grp.add(f); const tag = makeSprite(BY[id].n, 1.7, { size: 52 }); tag.position.set(f.position.x, -sz / 2 - 2.2, 0); grp.add(tag); });
+  const z = gateZ(G.i); grp.position.set(pathX(z) * .6, 21 + (G.i % 2) * 3, z - 30); G.fig = grp; G.figT = 0; wg.add(grp);
+}
+function build3D(w) {
+  if (wg) { scene.remove(wg); disposeGroup(wg); }
+  if (sky3) { scene.remove(sky3); disposeGroup(sky3); }
+  wg = new THREE.Group(); gates3 = []; AMP = w.look.amp || 1; const r = rng(hash(w.id + 'deco'));
+  scene.background = new THREE.Color(w.look.sky); scene.fog = new THREE.Fog(w.look.fog, 35, 170);
+  const len = GATE_GAP * (w.gates.length + 2) + 60;
+  const gg = new THREE.PlaneGeometry(260, len + 40, 52, Math.round((len + 40) / 4)); gg.rotateX(-Math.PI / 2); gg.translate(0, 0, 20 - (len + 40) / 2 + 20);
+  const gp = gg.attributes.position; for (let i = 0; i < gp.count; i++) gp.setY(i, terrainH(gp.getX(i), gp.getZ(i))); gg.computeVertexNormals();
+  wg.add(new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ color: w.look.ground, flatShading: true })));
+  /* path ribbon */
+  const pos = [], idx = []; const zs = []; for (let z = 14; z > -len; z -= 2) zs.push(z);
+  zs.forEach((z, k) => { const cx = pathX(z); pos.push(cx - 2.9, .06, z, cx + 2.9, .06, z); if (k) { const a = (k - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } });
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); pg.setIndex(idx); pg.computeVertexNormals();
+  wg.add(new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ color: new THREE.Color(w.look.path).multiplyScalar(.55), side: THREE.DoubleSide })));
+  /* decor */
+  const n = 130; for (let i = 0; i < n; i++) {
+    const z = 16 - r() * (len + 10); const side = r() < .5 ? -1 : 1; const x = pathX(z) + side * (7 + r() * 48);
+    if (Math.abs(x) > 105) continue; const d = decoMesh(w.look.deco, r); d.position.set(x, terrainH(x, z), z); d.rotation.y = r() * 6.28; wg.add(d);
+  }
+  /* gates */
+  w.gates.forEach((spec, i) => { const G = makeGate3D(w, i); gates3.push(G); wg.add(G.group); });
+  scene.add(wg);
+  /* sky dome */
+  sky3 = new THREE.Group(); const sp = [], sc = []; const rr = rng(77);
+  for (let i = 0; i < 1500; i++) { const u = rr() * 6.283, v = 0.03 + rr() * 0.97; const rad = Math.sqrt(1 - v * v); sp.push(Math.cos(u) * rad * 300, v * 300, Math.sin(u) * rad * 300); const b = .6 + rr() * .4; sc.push(b, b, .85 + rr() * .15); }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3)); sg.setAttribute('color', new THREE.Float32BufferAttribute(sc, 3));
+  sky3.add(new THREE.Points(sg, new THREE.PointsMaterial({ size: 1.8, sizeAttenuation: false, vertexColors: true, fog: false })));
+  const moonM = new THREE.Mesh(new THREE.SphereGeometry(11, 20, 14), new THREE.MeshBasicMaterial({ color: 0xfff3cf, fog: false })); moonM.position.set(-70, 105, -240); sky3.add(moonM);
+  scene.add(sky3);
+  /* player */
+  if (player3) { scene.remove(player3); disposeGroup(player3); }
+  player3 = new THREE.Group(); const L = c => new THREE.MeshStandardMaterial({ color: c, flatShading: true });
+  const cloak = new THREE.Mesh(new THREE.ConeGeometry(.95, 2.3, 9), L(0x3a56c8)); cloak.position.y = 1.15;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.5, 10, 8), L(0xf2d3b0)); head.position.y = 2.55;
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(.95, .95, .08, 12), L(0x22307a)); brim.position.y = 2.95;
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(.6, 1.3, 9), L(0x22307a)); hat.position.y = 3.6;
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(.28, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd27a })); lamp.position.set(.95, 1.4, .3);
+  lantern = new THREE.PointLight(0xffd27a, 1.3, 16); lantern.position.set(.95, 1.6, .3);
+  player3.add(cloak, head, brim, hat, lamp, lantern); scene.add(player3);
+  P.x = pathX(6); P.z = 6; P.rot = Math.PI;
+  /* restore solved gates */
+  w.gates.forEach((_, i) => { if (getStars(w, i)) { const G = gates3[i]; G.open = true; G.t = 1; applyGateOpen(G, w, 1); setSpriteText(G.lab, starsText(getStars(w, i))); } });
+}
+function applyGateOpen(G, w, t) {
+  G.door.visible = t < 1; G.door.children.forEach(m => m.material.opacity = .3 * (1 - t)); G.num.material.opacity = 1 - t; G.num.visible = t < 1;
+  const c = new THREE.Color(w.hex); G.pm.forEach(m => { m.emissive.copy(c).multiplyScalar(.28 * t); });
+  G.ring.position.y = 8 + t * 14; G.ring.scale.setScalar(1 - t * .7);
+}
+function setFigOpacity(G, t) { if (!G.fig) return; const seen = new Set(); G.fig.traverse(o => { if (o.material && !seen.has(o.material)) { seen.add(o.material); const m = o.material; m.opacity = Math.min(1, t) * (m.userData.max || 1); } }); }
+function gate3DOpen(i) {
+  const G = gates3[i]; if (!G) return; const w = current; G.open = true; setSpriteText(G.lab, starsText(getStars(w, i))); addSkyFigures(G, w);
+}
+function limitZ() { const w = current; const ni = nextIdx(w); return ni >= w.gates.length ? -(GATE_GAP * (w.gates.length + 1)) - 24 : gateZ(ni) + 1.8; }
+function nearGate() {
+  const w = current; const ni = nextIdx(w); let best = -1, bd = 1e9;
+  for (let i = 0; i <= Math.min(ni, w.gates.length - 1); i++) { const z = gateZ(i), x = pathX(z); const dx = P.x - x, dz = P.z - z; if (Math.abs(dx) < 8 && dz > -2.5 && dz < 8) { const d = dx * dx + dz * dz; if (d < bd) { bd = d; best = i; } } }
+  return best;
+}
+let nearIdx = -1;
+function update3D(dt) {
+  const w = current; const t = clock.elapsedTime; const free = modal.hidden && atlas.hidden;
+  let ix = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + joy.x, iy = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) + joy.y;
+  const m = Math.hypot(ix, iy); if (m > 1) { ix /= m; iy /= m; } if (!free) { ix = 0; iy = 0; }
+  const sp = 10; const mx = ix * sp * dt, mz = -iy * sp * dt;
+  P.x = Math.max(-80, Math.min(80, P.x + mx)); P.z = Math.min(14, Math.max(limitZ(), P.z + mz));
+  if (m > 0.05) { const target = Math.atan2(ix, -iy); let d = target - P.rot; d = Math.atan2(Math.sin(d), Math.cos(d)); P.rot += d * Math.min(1, dt * 10); P.bob += dt * 12; }
+  P.y = terrainH(P.x, P.z);
+  player3.position.set(P.x, P.y + (m > .05 ? Math.abs(Math.sin(P.bob)) * .18 : 0), P.z); player3.rotation.y = P.rot;
+  const tx = P.x * .85 + pathX(P.z) * .15, cp = new THREE.Vector3(tx, P.y + 7.5, P.z + 13);
+  camera.position.lerp(cp, 1 - Math.exp(-5 * dt)); camera.lookAt(P.x, P.y + 7, P.z - 12);
+  sky3.position.copy(camera.position);
+  gates3.forEach(G => {
+    if (G.open && G.t < 1) { G.t = Math.min(1, G.t + dt * .9); applyGateOpen(G, w, G.t); }
+    if (!G.open || G.t >= 1) G.ring.rotation.y += dt * (reduceMotion ? 0 : (G.open ? 0.2 : 0.8)); G.ring.rotation.x += dt * (reduceMotion ? 0 : .3);
+    if (G.fig && G.figT < 1) { G.figT = Math.min(1, G.figT + dt * .5); setFigOpacity(G, G.figT); }
+  });
+  wg.children.forEach(c => { if (c.userData && c.userData.float && !reduceMotion) { const m0 = c.children[0]; m0.position.y += Math.sin(t * 1.2 + m0.userData.bob) * .004; m0.rotation.y += dt * .3; } });
+  lantern.intensity = 1.2 + Math.sin(t * 7) * .08;
+  const ni = free ? nearGate() : -1; if (ni !== nearIdx) { nearIdx = ni; const p = $('#prompt'); if (ni < 0) p.hidden = true; else { p.hidden = false; $('#prompt-t').innerHTML = (isTouch() ? '' : 'Press <kbd>E</kbd> ') + (getStars(w, ni) ? 'Replay Gate ' + (ni + 1) : 'Solve Gate ' + (ni + 1)); } }
+  $('#walkhint').hidden = ni >= 0 || !free || P.z < 0;
+}
+function frame() { raf = requestAnimationFrame(frame); const dt = Math.min(clock.getDelta(), .05); update3D(dt); renderer.render(scene, camera); }
+function start3D() { if (raf) return; resize3D(); clock.getDelta(); nearIdx = -2; camera.position.set(P.x, 8, P.z + 13); raf = requestAnimationFrame(frame); }
+function stop3D() { if (raf) cancelAnimationFrame(raf); raf = null; $('#prompt').hidden = true; nearIdx = -1; }
+document.addEventListener('visibilitychange', () => { if (document.hidden && raf) { cancelAnimationFrame(raf); raf = null; } else if (!document.hidden && mode === '3d' && !raf) start3D(); });
+
+$('#prompt-b').onclick = () => { if (nearIdx >= 0) openGate(nearIdx); };
+document.addEventListener('keydown', e => {
+  if (mode !== '3d' || !modal.hidden || !atlas.hidden) return; const tag = (e.target.tagName || '').toLowerCase(); if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  if (e.code === 'KeyE' || e.code === 'Enter') { if (nearIdx >= 0 && (e.code === 'KeyE' || tag !== 'button')) { e.preventDefault(); openGate(nearIdx); } return; }
+  if (/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code)) { keys[e.code] = true; e.preventDefault(); $('#walkhint').hidden = true; }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; joy.x = joy.y = 0; });
+(function () {
+  const j = $('#joy'), kn = $('#knob'); let pid = null;
+  const set = e => { const r = j.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); const R = r.width / 2 - 10; const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; } kn.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; joy.x = dx / R; joy.y = -dy / R; };
+  j.addEventListener('pointerdown', e => { pid = e.pointerId; try { j.setPointerCapture(pid); } catch (_) { } set(e); e.preventDefault(); });
+  j.addEventListener('pointermove', e => { if (e.pointerId === pid) set(e); });
+  const end = e => { if (e.pointerId !== pid) return; pid = null; joy.x = joy.y = 0; kn.style.transform = ''; };
+  j.addEventListener('pointerup', end); j.addEventListener('pointercancel', end);
+})();
+
+/* ============ boot ============ */
+heroArt(); renderMenu(); showScreen('menu');
+(function () { const t = new URLSearchParams(location.search).get('theme'); if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t); })();
+
+</script>
+</body>
+</html>
